@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "venue": "deribit",
+  "source_url": "https://www.deribit.com/kb/fees",
+  "retrieved_at": "2026-08-25",
+  "note": "Conventions the instrument metadata does not express. Anything the API returns per-instrument is read from metadata instead and never duplicated here.",
+  "expiry": {
+    "time_utc": "08:00",
+    "note": "All dated contracts expire at this time. validate_expiry_convention checks live metadata agrees."
+  },
+  "settlement": {
+    "index_window_minutes": 30,
+    "note": "Settlement index is a time-weighted average over the window ending at expiry."
+  },
+  "fees": {
+    "option": {
+      "maker_rate_of_underlying": 0.0003,
+      "taker_rate_of_underlying": 0.0003,
+      "cap_fraction_of_premium": 0.125,
+      "delivery_rate_of_underlying": 0.00015,
+      "note": "Charged on the underlying, capped at cap_fraction_of_premium of the option price. Per-instrument rates from metadata override the rates here; the cap has no metadata field."
+    },
+    "future": {
+      "maker_rate_of_notional": 0.0,
+      "taker_rate_of_notional": 0.0005,
+      "delivery_rate_of_notional": 0.00015,
+      "cap_fraction_of_premium": null
+    }
+  }
+}
