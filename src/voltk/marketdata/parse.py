@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any, Mapping, Sequence
 
 from voltk.instruments import Instrument
@@ -28,6 +29,32 @@ def mark_prices(response: RawResponse) -> dict[str, float]:
         if name and mark is not None:
             marks[name] = float(mark)
     return marks
+
+
+@dataclass(frozen=True, slots=True)
+class Quote:
+    bid: float | None
+    ask: float | None
+    mark: float | None
+
+
+def _optional_float(value: Any) -> float | None:
+    return None if value is None else float(value)
+
+
+def quotes(response: RawResponse) -> dict[str, Quote]:
+    """Instrument name to bid/ask/mark, skipping rows the venue has not named."""
+    found: dict[str, Quote] = {}
+    for row in book_summary(response):
+        name = row.get("instrument_name")
+        if not name:
+            continue
+        found[name] = Quote(
+            bid=_optional_float(row.get("bid_price")),
+            ask=_optional_float(row.get("ask_price")),
+            mark=_optional_float(row.get("mark_price")),
+        )
+    return found
 
 
 def index_names(instrument_list: Sequence[Instrument]) -> dict[str, str]:
