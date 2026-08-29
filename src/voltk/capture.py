@@ -1,14 +1,13 @@
 """Synchronous capture.
 
-A chain captured at a different moment from its underlying produces a surface
-that is wrong in a way nothing downstream can detect. REST cannot give a true
-instant, so the capture is bracketed instead: the index is read before and after
-every other call, and the resulting drift and elapsed window are recorded and
-gated. A capture that breaches either limit is marked degraded and carries the
-reason with it.
+A chain captured at a different moment from its underlying gives a wrong surface
+and nothing downstream can detect it. REST cannot give a true instant, so the
+capture is bracketed: the index is read before and after everything else, and
+the drift and elapsed window are recorded and gated. Breaching either limit
+marks the capture degraded rather than discarding it.
 
-Capture order matters. Instrument definitions move slowest and go first;
-quotes move fastest and go last, closest to the second index read.
+Order matters: definitions move slowest and go first, quotes go last, closest to
+the second index read.
 """
 
 from __future__ import annotations
