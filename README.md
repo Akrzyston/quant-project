@@ -186,6 +186,63 @@ than, say, linearly extending the last segment's slope — flat is the least
 surprising choice when there is no information past the last traded future,
 and is confirmed here as the M2 decision rather than revisited.
 
+## M3 — surface construction, DVOL cross-check
+
+Fit in total variance against log-moneyness, not raw implied vol against
+strike. `w = vol^2 * tau` against `k = ln(K/F)` is the quantity that is linear
+under the time interpolation this milestone does, and whose monotonicity in
+maturity *is* the calendar no-arbitrage condition — neither statement holds
+for vol against strike, and strikes are not comparable across expiries the
+way moneyness is.
+
+**The structural prior is raw SVI** (Gatheral): `w(k) = a + b{ρ(k-m) + √((k-m)²+σ²)}`.
+Three reasons, stated and defended rather than assumed:
+
+- It is linear in `(a, bρ, b)` for a fixed `(m, σ)`, so most of the fit is
+  well-conditioned; `voltk/surface.py` calibrates the full nonlinear problem
+  with `scipy.optimize.least_squares`, bounded to stay a valid slice
+  (`b≥0, |ρ|<1, σ>0`), with the joint non-negative-variance constraint
+  `a + bσ√(1-ρ²) ≥ 0` checked post-fit across a few re-seeded attempts.
+- Its wings grow **linearly in total variance** by construction, so implied
+  vol grows like `√|k|` rather than exploding — this is what keeps deep-wing
+  extrapolation from producing the "400% vol at the tails" failure mode
+  without any ad hoc capping.
+- Gatheral's own `g(k)` function gives an exact, checkable butterfly test —
+  `butterfly_check` evaluates it analytically (SVI's own derivatives, no
+  finite differences) on a grid padded 20% past the fitted strikes, so a
+  problem just outside the observed range doesn't go unchecked.
+
+`Surface` stitches independently-calibrated slices into one continuous
+strike/time object: total variance interpolates linearly in `tau` between the
+two bracketing expiries at fixed `k` (algebraically the same thing as CBOE's
+constant-maturity formula), and extrapolates outside the fitted maturity
+range by holding the instantaneous variance rate constant at the nearest
+slice — the same flat-rate idea SVI's wings already apply in the strike
+direction, applied once more in time, so neither axis of extrapolation can
+blow up. `calendar_check` verifies non-decreasing total variance in maturity
+between every adjacent calibrated pair. `Surface.dvol_dspot` gives the
+model's own sticky-strike vol sensitivity to a spot move — a genuinely
+different question from M4's later empirical sticky-strike-vs-sticky-delta
+regression against real intraday data.
+
+**Model-free variance cross-check.** `voltk/variance.py` replicates CBOE's
+variance-swap-style discretized sum over the OTM strike ladder, using the
+forward derived from parity (`voltk/forward.py`, M2) rather than the traded
+future — the same convention CBOE's own methodology uses, and the reason M2
+and M3 are the same project. `constant_maturity_variance` interpolates this
+to a target tenor (30 days) the same way `Surface` does. The Smile panel
+reports this model-free index against both Deribit's published DVOL and the
+fitted surface's own ATM level side by side: a surface can be right
+pointwise and wrong in aggregate, and this is what catches that.
+
+**Numerics**: `numpy`/`scipy` are new dependencies as of this milestone, the
+first ones added to `src/voltk/`. Every earlier module (`solver.py`'s
+Newton/bisection, `forward.py`'s median-of-strikes) is hand-rolled on `math`;
+SVI calibration is exactly the class of problem — real nonlinear least
+squares, array/grid construction for the 3D surface — where a battle-tested
+library is the professional choice, not a shortcut, and it's a scoped
+exception rather than a retroactive rewrite of what came before.
+
 ## Known gaps
 
 - Deribit options are European with no dividends, so the binomial model has no
@@ -202,3 +259,11 @@ and is confirmed here as the M2 decision rather than revisited.
   independently (`data.marks_for` / `data.quotes_for`), so one render issues
   two live calls to the same endpoint. Matches `marks_for`'s existing
   uncached-per-render cost; not worth a caching layer for two panels.
+- SVI calibration and the model-free variance index have only been verified
+  against a synthetic chain priced exactly off a known SVI curve (round-trips
+  to 1e-6). Live Deribit strikes are unevenly spaced and far more of them,
+  so the calibration bounds/seed grid and the variance sum's discretization
+  error need a live run to confirm the tolerances still hold.
+- Deribit's DVOL construction is not published in detail, so the model-free
+  cross-check is validated on shape and order of magnitude, not against an
+  independently reproducible reference number.
