@@ -41,19 +41,17 @@ def test_off_convention_expiry_is_caught() -> None:
         conventions.validate_expiry_convention(instruments, spec)
 
 
-def test_option_fee_is_capped_against_premium() -> None:
+def test_option_fee_switches_between_rate_and_cap() -> None:
+    """Charged on the underlying, but capped as a fraction of a small premium."""
     schedule = conventions.load(VENUE).fee_schedule("option")
-    underlying, premium = 60000.0, 10.0
-    uncapped = schedule.taker_rate * underlying
-    charged = schedule.fee(underlying, premium, maker=False)
-    assert charged < uncapped
-    assert charged == pytest.approx(schedule.cap_fraction_of_premium * premium)
+    underlying = 60000.0
 
+    cheap = schedule.fee(underlying, 10.0, maker=False)
+    assert cheap == pytest.approx(schedule.cap_fraction_of_premium * 10.0)
+    assert cheap < schedule.taker_rate * underlying
 
-def test_option_fee_is_rate_based_when_premium_is_large() -> None:
-    schedule = conventions.load(VENUE).fee_schedule("option")
-    charged = schedule.fee(60000.0, 5000.0, maker=False)
-    assert charged == pytest.approx(schedule.taker_rate * 60000.0)
+    expensive = schedule.fee(underlying, 5000.0, maker=False)
+    assert expensive == pytest.approx(schedule.taker_rate * underlying)
 
 
 def test_future_fee_has_no_premium_cap() -> None:

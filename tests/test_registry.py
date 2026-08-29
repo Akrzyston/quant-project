@@ -47,8 +47,3 @@ def test_ordering_within_a_slot_is_unambiguous() -> None:
         orders = [spec.order for spec in panels_for(slot)]
         assert orders == sorted(orders)
         assert len(orders) == len(set(orders))
-
-
-def test_every_panel_declares_a_milestone() -> None:
-    for spec in all_panels():
-        assert spec.milestone

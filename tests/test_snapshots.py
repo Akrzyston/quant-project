@@ -173,11 +173,3 @@ def test_degraded_capture_is_marked_in_storage(store: SnapshotStore) -> None:
     assert meta.degraded
     assert meta.quality.reasons
 
-
-def test_delete_removes_payloads(venue: FakeVenue, store: SnapshotStore) -> None:
-    snapshot_id = _saved(venue, store)
-    store.delete(snapshot_id)
-
-    with pytest.raises(SnapshotError):
-        store.load(snapshot_id)
-

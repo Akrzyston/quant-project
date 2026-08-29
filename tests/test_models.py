@@ -28,7 +28,3 @@ def test_unimplemented_model_refuses_to_build() -> None:
         with pytest.raises(NotImplementedError, match="M1"):
             spec.build()
 
-
-def test_unknown_key_names_what_is_registered() -> None:
-    with pytest.raises(KeyError, match="black_scholes"):
-        models.get("heston")

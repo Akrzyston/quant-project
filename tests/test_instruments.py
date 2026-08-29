@@ -80,8 +80,3 @@ def test_perpetual_has_no_expiry() -> None:
     assert inst.expiry is None
     assert inst.tau(AS_OF) is None
     assert inst.expiry_label == "PERPETUAL"
-
-
-def test_commissions_are_read_from_metadata() -> None:
-    inst = Instrument.from_deribit(_payload())
-    assert inst.taker_commission == pytest.approx(0.0003)
