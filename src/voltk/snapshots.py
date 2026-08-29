@@ -15,6 +15,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Iterable, Sequence
 
+import voltk
 from voltk.canonical import canonical_json, sha256_bytes
 from voltk.capture import SCHEMA_VERSION, Capture, Quality, build_forward_curve
 from voltk.instruments import Kind
@@ -29,6 +30,7 @@ _SCHEMA = """
 CREATE TABLE IF NOT EXISTS snapshots (
     snapshot_id     TEXT PRIMARY KEY,
     schema_version  INTEGER NOT NULL,
+    library_version TEXT NOT NULL,
     source_label    TEXT NOT NULL,
     spec_json       TEXT NOT NULL,
     started_at      TEXT NOT NULL,
@@ -66,6 +68,7 @@ class SnapshotError(RuntimeError):
 class SnapshotMeta:
     snapshot_id: str
     schema_version: int
+    library_version: str
     source_label: str
     spec: UniverseSpec
     started_at: datetime
@@ -121,10 +124,11 @@ class SnapshotStore:
 
         with self._connect() as conn:
             conn.execute(
-                "INSERT INTO snapshots VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                "INSERT INTO snapshots VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (
                     snapshot_id,
                     capture.schema_version,
+                    voltk.__version__,
                     capture.source_label,
                     canonical_json(
                         {
@@ -176,6 +180,12 @@ class SnapshotStore:
             ).fetchone()
             if row is None:
                 raise SnapshotError(f"No snapshot {snapshot_id!r} in {self.path}.")
+            if row["library_version"] != voltk.__version__:
+                raise SnapshotError(
+                    f"Snapshot {snapshot_id} was captured with voltk "
+                    f"{row['library_version']!r}, but this is voltk {voltk.__version__!r}. "
+                    "Reload with the matching library version to replay it."
+                )
             payloads = conn.execute(
                 "SELECT * FROM payloads WHERE snapshot_id = ?", (snapshot_id,)
             ).fetchall()
@@ -217,6 +227,7 @@ def _meta_from_row(row: sqlite3.Row) -> SnapshotMeta:
     return SnapshotMeta(
         snapshot_id=row["snapshot_id"],
         schema_version=row["schema_version"],
+        library_version=row["library_version"],
         source_label=row["source_label"],
         spec=UniverseSpec(
             currencies=tuple(spec_blob["currencies"]),

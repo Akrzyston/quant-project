@@ -6,6 +6,7 @@ import time
 
 import pytest
 
+import voltk
 from tests.conftest import ALT, BASE, FakeVenue
 from voltk.capture import capture, dossier
 from voltk.canonical import canonical_json
@@ -101,9 +102,26 @@ def test_snapshot_is_versioned_and_timestamped(venue: FakeVenue, store: Snapshot
     meta = store.load(snapshot_id).meta
 
     assert meta.schema_version >= 1
+    assert meta.library_version == voltk.__version__
     assert meta.as_of.tzinfo is not None
     assert meta.content_hash
     assert snapshot_id.startswith(meta.as_of.strftime("%Y%m%dT%H%M%SZ"))
+
+
+def test_reload_refuses_a_snapshot_from_a_different_library_version(
+    venue: FakeVenue, store: SnapshotStore
+) -> None:
+    snapshot_id = _saved(venue, store)
+    import sqlite3
+
+    with sqlite3.connect(store.path) as conn:
+        conn.execute(
+            "UPDATE snapshots SET library_version = ? WHERE snapshot_id = ?",
+            ("0.0.0-stale", snapshot_id),
+        )
+
+    with pytest.raises(SnapshotError, match="0.0.0-stale"):
+        store.load(snapshot_id)
 
 
 def test_replay_source_satisfies_the_market_data_protocol(
@@ -162,3 +180,4 @@ def test_delete_removes_payloads(venue: FakeVenue, store: SnapshotStore) -> None
 
     with pytest.raises(SnapshotError):
         store.load(snapshot_id)
+
