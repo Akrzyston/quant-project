@@ -124,6 +124,72 @@ def test_reload_refuses_a_snapshot_from_a_different_library_version(
         store.load(snapshot_id)
 
 
+def test_a_store_predating_library_version_tracking_migrates_in_place(tmp_path) -> None:
+    """CREATE TABLE IF NOT EXISTS leaves an existing table's columns untouched."""
+    import json
+    import sqlite3
+
+    path = tmp_path / "legacy.db"
+    with sqlite3.connect(path) as conn:
+        conn.executescript(
+            """
+            CREATE TABLE snapshots (
+                snapshot_id     TEXT PRIMARY KEY,
+                schema_version  INTEGER NOT NULL,
+                source_label    TEXT NOT NULL,
+                spec_json       TEXT NOT NULL,
+                started_at      TEXT NOT NULL,
+                completed_at    TEXT NOT NULL,
+                as_of           TEXT NOT NULL,
+                window_ms       REAL NOT NULL,
+                drift_json      TEXT NOT NULL,
+                quality_json    TEXT NOT NULL,
+                degraded        INTEGER NOT NULL,
+                note            TEXT NOT NULL DEFAULT '',
+                content_hash    TEXT NOT NULL
+            );
+            CREATE TABLE payloads (
+                snapshot_id   TEXT NOT NULL REFERENCES snapshots(snapshot_id) ON DELETE CASCADE,
+                component     TEXT NOT NULL,
+                endpoint      TEXT NOT NULL,
+                params_json   TEXT NOT NULL,
+                source        TEXT NOT NULL,
+                retrieved_at  TEXT NOT NULL,
+                body          BLOB NOT NULL,
+                body_sha256   TEXT NOT NULL,
+                PRIMARY KEY (snapshot_id, component)
+            );
+            """
+        )
+        conn.execute(
+            "INSERT INTO snapshots VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (
+                "legacy-id",
+                1,
+                "test",
+                json.dumps({"currencies": [BASE], "kinds": ["option"]}),
+                "2026-01-01T00:00:00+00:00",
+                "2026-01-01T00:00:00+00:00",
+                "2026-01-01T00:00:00+00:00",
+                0.0,
+                "{}",
+                json.dumps({"window_ms": 0.0, "max_window_ms": 0.0,
+                            "max_index_drift_bps": 0.0, "reasons": []}),
+                0,
+                "",
+                "deadbeef",
+            ),
+        )
+
+    legacy_store = SnapshotStore(path)
+    metas = legacy_store.list()
+
+    assert len(metas) == 1
+    assert metas[0].library_version == "unknown"
+    with pytest.raises(SnapshotError, match="unknown"):
+        legacy_store.load("legacy-id")
+
+
 def test_replay_source_satisfies_the_market_data_protocol(
     venue: FakeVenue, store: SnapshotStore
 ) -> None:

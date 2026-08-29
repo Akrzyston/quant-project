@@ -101,6 +101,7 @@ class SnapshotStore:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self._connect() as conn:
             conn.executescript(_SCHEMA)
+            _migrate(conn)
 
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.path)
@@ -214,6 +215,21 @@ class SnapshotStore:
         with self._connect() as conn:
             conn.execute("DELETE FROM payloads WHERE snapshot_id = ?", (snapshot_id,))
             conn.execute("DELETE FROM snapshots WHERE snapshot_id = ?", (snapshot_id,))
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    """Backfill columns added to the schema after a store already existed on disk.
+
+    CREATE TABLE IF NOT EXISTS leaves an older table's columns untouched, so a
+    store opened before library_version was added needs it added explicitly. The
+    default marks those rows as being from before version tracking existed,
+    which load() treats as a mismatch like any other.
+    """
+    columns = {row["name"] for row in conn.execute("PRAGMA table_info(snapshots)")}
+    if "library_version" not in columns:
+        conn.execute(
+            "ALTER TABLE snapshots ADD COLUMN library_version TEXT NOT NULL DEFAULT 'unknown'"
+        )
 
 
 def _new_id(capture: Capture) -> str:
