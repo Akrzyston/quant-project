@@ -4,7 +4,7 @@ A reusable pricing/risk library with a Streamlit view on the outside. The
 dashboard accumulates one panel per milestone.
 
 ```
-uv run pytest -q                        # 90 tests
+uv run pytest -q                        # 100 tests, 561 cases
 uv run streamlit run streamlit_app.py
 ```
 
@@ -115,10 +115,54 @@ Then add `("smile", "main", 30)` to `EXPECTED` in `tests/test_registry.py`. That
 one-line diff is what makes a panel that stops registering fail CI rather than
 vanish from the screen.
 
+## M1 — pricing engine
+
+Five models: Black-Scholes (spot), Black-76 (forward), Bachelier (normal vol),
+a CRR binomial tree with early exercise and discrete dividends, and the inverse
+adjustment.
+
+Every model exposes `price`, `implied_vol`, `greeks`, `bounds`, and
+`vol_bracket`. Registering a model in `voltk/models/__init__.py` is what makes it
+selectable in the UI; no model name is written in the view layer.
+
+### Validation
+
+- Round trip `price -> implied_vol -> price` under 1e-10 across every model,
+  strike, expiry, vol, and right.
+- Put-call parity per model. The inverse relation is `C - P = 1 - K/F`, not
+  `D(F - K)`, and is checked separately.
+- No-arbitrage bounds on every price; a quote outside them raises
+  `ArbitrageError` rather than returning a fitted number.
+- Analytic greeks against Richardson-extrapolated finite differences, with a
+  per-greek tolerance and a conditioning-derived floor. See the module docstring
+  in `tests/test_greeks_finite_difference.py` for why a fixed tolerance is not
+  enough.
+- Put-call parity against observed chain marks in `voltk/validation.py`, which
+  reports gaps against the combined spread rather than asserting equality. The
+  coin-settled relation is `C - P = 1 - K/F`.
+- Binomial convergence to Black-Scholes at first order, zero early-exercise
+  premium on a dividend-free American call, positive premium once dividends are
+  added.
+
+`implied_vol_detailed` reports whether the answer is identified: where vega falls
+below a floor the price carries almost no information about vol, and a solver
+will happily return a number that means nothing. The round trip still closes on
+price; the vol does not.
+
+### The inverse adjustment
+
+Derived two independent ways — a replicating portfolio via change of numeraire,
+and direct conversion of the quote-currency value — which agree to about 1e-17.
+Full argument in `docs/inverse_replication.md`, including the quanto comparison
+and the delta-versus-strike shape.
+
 ## Known gaps
 
 - Deribit options are European with no dividends, so the binomial model has no
   early-exercise boundary to find and Bachelier has no negative-price market to
   validate against. Both need synthetic validation or a second data source.
-- There is no rates curve. The `rate` argument will have to come from futures
-  basis, decided at M2.
+- `Universe.implied_rate` takes the rate from the futures basis via
+  `F = S*exp(r*tau)`. There is no rates curve to look up, so this is the only
+  source; it is exact for the inverse model, where rho is zero regardless.
+- The chain parity check has only been exercised against synthetic fixtures, not
+  live quotes.
