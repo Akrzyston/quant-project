@@ -104,6 +104,25 @@ def marks_for(currency: str) -> dict[str, float]:
     return dict(parse.mark_prices(snapshot.responses[component]))
 
 
+def quotes_for(currency: str) -> dict[str, parse.Quote]:
+    """Venue bid/ask/mark for the current source, keyed by instrument name."""
+    s = state.get()
+    if s.is_live:
+        try:
+            response = client().fetch_book_summary(currency, Kind.OPTION)
+        except MarketDataError:
+            return {}
+        return dict(parse.quotes(response))
+
+    if not s.active_snapshot_id:
+        return {}
+    snapshot = store().load(s.active_snapshot_id)
+    component = f"summary:{currency}:{Kind.OPTION}"
+    if component not in snapshot.responses:
+        return {}
+    return dict(parse.quotes(snapshot.responses[component]))
+
+
 def summarise(universe: Universe) -> dict[str, Any]:
     return dossier(universe)
 
