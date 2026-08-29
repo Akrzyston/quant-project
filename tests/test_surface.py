@@ -14,6 +14,7 @@ from voltk.surface import (
     SurfaceError,
     butterfly_check,
     calendar_check,
+    calibrate_surface,
     calibrate_svi_slice,
     log_moneyness,
     smile_points,
@@ -154,3 +155,22 @@ def test_dvol_sticky_strike_is_always_exactly_zero() -> None:
     sloped = Surface(slices=(_slice(b=0.10, rho=-0.5),))
 
     assert sloped.dvol_sticky_strike(60_000.0, 60_000.0, TAU_30D, 0.08) == 0.0
+
+
+def test_calibrate_surface_is_bit_for_bit_deterministic() -> None:
+    """calibrate_svi_slice's seed schedule is a pure function of the input
+    data (no RNG, no threading), so re-running the fitter against identical
+    inputs must reproduce identical output exactly -- this is the surface-
+    fitting half of M5's "reload a snapshot, re-run the fitter, and assert
+    the surface reproduces bit-for-bit" accept criterion. The other half
+    (reload reproduces an identical universe/marks) is already covered by
+    tests/test_snapshots.py and tests/test_replay_determinism.py; composing
+    the two proves the whole chain.
+    """
+    universe, marks, implied_forward = build_synthetic_chain()
+
+    slices_1, failures_1 = calibrate_surface(universe, marks, [implied_forward])
+    slices_2, failures_2 = calibrate_surface(universe, marks, [implied_forward])
+
+    assert slices_1 == slices_2
+    assert failures_1 == failures_2
