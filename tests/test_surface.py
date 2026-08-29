@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from datetime import UTC, datetime
 
 import pytest
@@ -131,9 +132,25 @@ def test_surface_extrapolates_by_holding_the_variance_rate_constant() -> None:
     assert after == pytest.approx(far.total_variance(0.0) * (40 / 365) / far.tau)
 
 
-def test_dvol_dspot_is_nonzero_on_a_sloped_smile_and_zero_on_a_flat_one() -> None:
+def test_dvol_dforward_sticky_delta_is_nonzero_on_a_sloped_smile_and_zero_on_a_flat_one() -> None:
     sloped = Surface(slices=(_slice(b=0.10, rho=-0.5),))
     flat = Surface(slices=(_slice(b=0.0, rho=0.0),))
 
-    assert sloped.dvol_dspot(60_000.0, 60_000.0, TAU_30D) != pytest.approx(0.0, abs=1e-12)
-    assert flat.dvol_dspot(60_000.0, 60_000.0, TAU_30D) == pytest.approx(0.0, abs=1e-12)
+    assert sloped.dvol_dforward_sticky_delta(60_000.0, 60_000.0, TAU_30D) != pytest.approx(0.0, abs=1e-12)
+    assert flat.dvol_dforward_sticky_delta(60_000.0, 60_000.0, TAU_30D) == pytest.approx(0.0, abs=1e-12)
+
+
+def test_dvol_dspot_sticky_delta_scales_by_exp_rate_tau() -> None:
+    sloped = Surface(slices=(_slice(b=0.10, rho=-0.5),))
+    rate = 0.08
+
+    d_forward = sloped.dvol_dforward_sticky_delta(60_000.0, 60_000.0, TAU_30D)
+    d_spot = sloped.dvol_dspot_sticky_delta(60_000.0, 60_000.0, TAU_30D, rate)
+
+    assert d_spot == pytest.approx(d_forward * math.exp(rate * TAU_30D))
+
+
+def test_dvol_sticky_strike_is_always_exactly_zero() -> None:
+    sloped = Surface(slices=(_slice(b=0.10, rho=-0.5),))
+
+    assert sloped.dvol_sticky_strike(60_000.0, 60_000.0, TAU_30D, 0.08) == 0.0

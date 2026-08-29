@@ -399,14 +399,35 @@ class Surface:
         w = self.total_variance(k, tau)
         return math.sqrt(w / tau) if w > 0.0 else 0.0
 
-    def dvol_dspot(self, strike: float, forward: float, tau: float, *, bump: float = 1e-3) -> float:
-        """d(vol)/d(spot) under sticky-strike: the fitted curve is held fixed
-        in strike space, so only k = ln(K/F) moves as the forward moves.
-        Central difference in the forward. M4 later determines empirically
-        whether sticky-strike or sticky-delta actually holds; this is what
-        the model itself implies, with no extra assumption.
+    def dvol_dforward_sticky_delta(
+        self, strike: float, forward: float, tau: float, *, bump: float = 1e-3
+    ) -> float:
+        """d(vol)/d(forward) under sticky-delta: the fitted curve is held fixed
+        in relative log-moneyness k = ln(K/F), so as the forward moves, vol at
+        a fixed absolute strike moves with it -- the smile "follows the
+        underlying." This is sticky-delta, not sticky-strike: genuine
+        sticky-strike means the smile is pinned to absolute strikes, so vol at
+        a fixed K does not move at all (see dvol_sticky_strike).
         """
         up, down = forward * (1.0 + bump), forward * (1.0 - bump)
         vol_up = self.vol(log_moneyness(strike, up), tau)
         vol_down = self.vol(log_moneyness(strike, down), tau)
         return (vol_up - vol_down) / (up - down)
+
+    def dvol_dspot_sticky_delta(
+        self, strike: float, forward: float, tau: float, rate: float, *, bump: float = 1e-3
+    ) -> float:
+        """d(vol)/d(spot) under sticky-delta, chain-ruled through the exact
+        futures-basis relationship F = S*exp(rate*tau) this project already
+        uses (Universe.implied_rate): dF/dS = exp(rate*tau), holding rate and
+        tau fixed as spot moves.
+        """
+        return self.dvol_dforward_sticky_delta(strike, forward, tau, bump=bump) * math.exp(rate * tau)
+
+    def dvol_sticky_strike(self, *args: object, **kwargs: object) -> float:
+        """Identically zero: sticky-strike means the fitted sigma(K) curve
+        itself does not move as spot or forward move, by definition. Same
+        call shape as the other two so a caller can select a regime
+        generically without branching on it.
+        """
+        return 0.0
