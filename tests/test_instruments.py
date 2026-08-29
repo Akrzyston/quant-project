@@ -45,6 +45,20 @@ def test_missing_convention_raises_rather_than_defaulting() -> None:
         Instrument.from_deribit(payload)
 
 
+def test_missing_instrument_name_raises_rather_than_defaulting() -> None:
+    payload = _payload()
+    payload.pop("instrument_name")
+    with pytest.raises(MetadataError, match="instrument_name"):
+        Instrument.from_deribit(payload)
+
+
+def test_missing_settlement_currency_raises_rather_than_defaulting() -> None:
+    payload = _payload()
+    payload.pop("settlement_currency")
+    with pytest.raises(MetadataError, match="settlement_currency"):
+        Instrument.from_deribit(payload)
+
+
 def test_tau_requires_an_explicit_observation_time() -> None:
     inst = Instrument.from_deribit(_payload())
     with pytest.raises(TypeError):

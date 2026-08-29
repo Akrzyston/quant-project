@@ -95,9 +95,13 @@ class Instrument:
     def from_deribit(
         cls, payload: Mapping[str, Any], provenance: Provenance | None = None
     ) -> Instrument:
-        name = payload.get("instrument_name") or "<unnamed>"
+        if payload.get("instrument_name") is None:
+            raise MetadataError(
+                "payload missing 'instrument_name'. Contract conventions are never defaulted."
+            )
+        name = payload["instrument_name"]
         base = _require(payload, "base_currency", name)
-        settlement_currency = payload.get("settlement_currency") or base
+        settlement_currency = _require(payload, "settlement_currency", name)
 
         expiry_ms = payload.get("expiration_timestamp")
         expiry = (
