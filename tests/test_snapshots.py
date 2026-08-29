@@ -190,6 +190,58 @@ def test_a_store_predating_library_version_tracking_migrates_in_place(tmp_path) 
         legacy_store.load("legacy-id")
 
 
+def test_saving_into_a_migrated_store_does_not_shift_columns(venue: FakeVenue, tmp_path) -> None:
+    """ALTER TABLE ADD COLUMN always appends at the end, regardless of where
+    the CREATE TABLE string puts it -- a store that went through _migrate()
+    has library_version as its LAST physical column, not its third. Any
+    save() that inserts positionally, assuming the schema-string order,
+    silently writes every later field into the wrong column on exactly this
+    kind of store. Only an INSERT with an explicit column list is immune.
+    """
+    import sqlite3
+
+    path = tmp_path / "migrated.db"
+    with sqlite3.connect(path) as conn:
+        conn.executescript(
+            """
+            CREATE TABLE snapshots (
+                snapshot_id     TEXT PRIMARY KEY,
+                schema_version  INTEGER NOT NULL,
+                source_label    TEXT NOT NULL,
+                spec_json       TEXT NOT NULL,
+                started_at      TEXT NOT NULL,
+                completed_at    TEXT NOT NULL,
+                as_of           TEXT NOT NULL,
+                window_ms       REAL NOT NULL,
+                drift_json      TEXT NOT NULL,
+                quality_json    TEXT NOT NULL,
+                degraded        INTEGER NOT NULL,
+                note            TEXT NOT NULL DEFAULT '',
+                content_hash    TEXT NOT NULL
+            );
+            CREATE TABLE payloads (
+                snapshot_id   TEXT NOT NULL REFERENCES snapshots(snapshot_id) ON DELETE CASCADE,
+                component     TEXT NOT NULL,
+                endpoint      TEXT NOT NULL,
+                params_json   TEXT NOT NULL,
+                source        TEXT NOT NULL,
+                retrieved_at  TEXT NOT NULL,
+                body          BLOB NOT NULL,
+                body_sha256   TEXT NOT NULL,
+                PRIMARY KEY (snapshot_id, component)
+            );
+            """
+        )
+
+    migrated_store = SnapshotStore(path)  # __init__ runs _migrate(), appending library_version
+    snapshot_id = migrated_store.save(capture(venue, UniverseSpec.of([BASE])))
+
+    reloaded = migrated_store.load(snapshot_id)
+    assert reloaded.meta.source_label == venue.label
+    assert reloaded.meta.library_version == voltk.__version__
+    assert reloaded.meta.spec.currencies == (BASE,)
+
+
 def test_replay_source_satisfies_the_market_data_protocol(
     venue: FakeVenue, store: SnapshotStore
 ) -> None:

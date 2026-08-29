@@ -125,7 +125,13 @@ class SnapshotStore:
 
         with self._connect() as conn:
             conn.execute(
-                "INSERT INTO snapshots VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                """
+                INSERT INTO snapshots (
+                    snapshot_id, schema_version, library_version, source_label,
+                    spec_json, started_at, completed_at, as_of, window_ms,
+                    drift_json, quality_json, degraded, note, content_hash
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                """,
                 (
                     snapshot_id,
                     capture.schema_version,
@@ -150,7 +156,12 @@ class SnapshotStore:
                 ),
             )
             conn.executemany(
-                "INSERT INTO payloads VALUES (?,?,?,?,?,?,?,?)",
+                """
+                INSERT INTO payloads (
+                    snapshot_id, component, endpoint, params_json,
+                    source, retrieved_at, body, body_sha256
+                ) VALUES (?,?,?,?,?,?,?,?)
+                """,
                 [
                     (
                         snapshot_id,
