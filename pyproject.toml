@@ -5,8 +5,10 @@ description = "A simple Streamlit app template."
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
+    "numpy>=2.4.4",
     "plotly>=6.9.0",
     "requests>=2.34.0",
+    "scipy>=1.18.1",
     "streamlit>=1.61.1",
 ]
 
