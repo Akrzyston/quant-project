@@ -220,10 +220,10 @@ range by holding the instantaneous variance rate constant at the nearest
 slice — the same flat-rate idea SVI's wings already apply in the strike
 direction, applied once more in time, so neither axis of extrapolation can
 blow up. `calendar_check` verifies non-decreasing total variance in maturity
-between every adjacent calibrated pair. `Surface.dvol_dspot` gives the
-model's own sticky-strike vol sensitivity to a spot move — a genuinely
-different question from M4's later empirical sticky-strike-vs-sticky-delta
-regression against real intraday data.
+between every adjacent calibrated pair. `Surface.dvol_dforward_sticky_delta`
+gives the model's own sticky-delta vol sensitivity to a forward move —
+corrected in M4 from an earlier mislabeling as sticky-strike; genuine
+sticky-strike is identically zero by definition (see the M4 section below).
 
 **Model-free variance cross-check.** `voltk/variance.py` replicates CBOE's
 variance-swap-style discretized sum over the OTM strike ladder, using the
@@ -242,6 +242,108 @@ SVI calibration is exactly the class of problem — real nonlinear least
 squares, array/grid construction for the 3D surface — where a battle-tested
 library is the professional choice, not a shortcut, and it's a scoped
 exception rather than a retroactive rewrite of what came before.
+
+## M4 — greeks in both units, bucketed vega, shock ladder
+
+### A correction to M3, found while building this milestone
+
+`Surface.dvol_dspot` was mislabeled. It bumped the forward and held the
+fitted SVI curve fixed in relative log-moneyness `k=ln(K/F)` — the smile
+"follows the underlying," which is the textbook definition of **sticky-delta**
+(confirmed against an independent options-theory source), not sticky-strike
+as the old docstring claimed. Genuine sticky-strike means the smile is pinned
+to absolute strikes, so vol at a fixed strike does not move at all — it is
+identically zero, which has a clean financial reading used below. Split into
+`Surface.dvol_dforward_sticky_delta`, `Surface.dvol_dspot_sticky_delta`
+(chain-ruled through `F=S·exp(rate·τ)`), and `Surface.dvol_sticky_strike`
+(always `0.0`).
+
+### Coin and cash are not a units conversion
+
+`voltk/greeks.cash_greeks_from_coin` derives cash Greeks from
+`InverseOption`'s coin Greeks via the self-quanto chain rule:
+`V_cash(S) = V_coin(F(S))·S`, `F(S)=S·exp(rate·τ)`. Differentiating:
+
+```
+Δ_cash = V_coin + F·Δ_coin
+Γ_cash = exp(rate·τ)·(F·Γ_coin + 2·Δ_coin)
+Vega_cash = S·Vega_coin   (and theta, rho, vanna, volga the same way)
+```
+
+`InverseOption`'s Greeks are *forward* Greeks (`Δ_coin = ∂V_coin/∂F`), and
+cash value is a genuinely *spot* quantity — delta comes out right even from a
+naive `F`-for-`S` substitution (a coincidence of the algebra), but gamma is
+off by a real, material amount (~4% at a realistic rate) without the
+`exp(rate·τ)` factor, verified against a direct finite difference of
+`V_cash(S)`. Vega/theta/rho/vanna/volga stay simple spot multiples, since a
+vol/tau/rate bump holds both `F` and `S` fixed — no product-rule term. Tests
+regression-lock the trap: cash delta and gamma are asserted to *differ* from
+the naive forms, not just to match the correct ones.
+
+### Vanna and volga
+
+Closed forms for Black-Scholes/Black-76 (`-Vega·d2/(underlying·vol·√τ)`,
+`Vega·d1·d2/vol`), Bachelier (same shape with its own unsigned `d`), and
+`InverseOption` (derived from the same `F·pdf(d1)=K·pdf(d2)` cancellation
+vega/theta already use, cp-independent like they are) — all four verified
+against Richardson-extrapolated finite differences of the analytic vega
+itself, both call and put, to 9+ significant figures. `Binomial` reprices on
+rebuilt trees, the same central-difference approach it already uses for
+vega/rho.
+
+### Skew-adjusted delta, both regimes
+
+`Δ_eff = Δ_flat + Vega × ∂σ/∂(underlying)`. Under sticky-strike this is
+exactly `Δ_flat` — the fitted smile doesn't move as spot moves, by
+definition, so the flat delta is already right. Under sticky-delta the smile
+follows the underlying, so the adjustment is real. M6 later determines
+empirically which regime actually holds against intraday data; M4 only
+computes both, routed to the model's own spot- or forward-flavoured
+sensitivity so the adjustment stays dimensionally consistent with that
+model's delta.
+
+### Bucketed vega by surface control point
+
+SVI has no literal spline knots — five global parameters, not a piecewise
+curve — so a "control point" is one of the market smile points the expiry
+was actually calibrated against. Buckets are formed by rank in log-moneyness,
+never a hardcoded strike or delta cutoff. Each bucket's vega comes from
+bumping only that bucket's points' total variance by a fixed additive amount,
+refitting SVI, and repricing. The reconciliation (bucketed vegas should sum
+to the parallel vega) rests on an exact identity: `w=a+b(...)` is linear in
+`a`, so a uniform bump across *every* point is absorbed by `a` alone with
+`b/ρ/m/σ` unchanged (verified to 1e-9) — what makes the sum meaningful when
+only a subset is bumped, rather than a loose first-order claim.
+
+### Structured shock ladder
+
+Three named, reproducible transformations of the *current* fitted SVI slice
+— level bumps `a`, skew bumps `ρ`, curvature bumps `σ` — each provably exact
+at the slice's own vertex `k=m`: `w(m)=a+bσ`, `∂w/∂k(m)=bρ`,
+`∂²w/∂k²(m)=b/σ`. A level shock leaves both derivatives untouched; a skew
+shock leaves the level and curvature untouched, changing only the slope; a
+curvature shock leaves the slope untouched, changing only the curvature.
+Genuinely not a parallel vol shift — none of the three, nor any pair, moves
+vol by a proportional amount across strikes.
+
+**Honest scope**: this is not a true historical level/skew/curvature PCA.
+Deribit's public API has no bulk historical-chain endpoint
+(`get_book_summary_by_currency`/`get_instruments` are current-state only),
+DVOL history is a single scalar time series with no per-strike information,
+and the local snapshot store has no automated SVI-history harvesting yet — so
+a real empirical decomposition isn't buildable right now. One partial, real
+use of history: the level shock's *magnitude* (not its shape) is sized from
+the realized vol-of-vol of Deribit's own published DVOL closes when
+available, falling back to a documented default otherwise.
+
+### Portfolio aggregation
+
+Deliberately minimal and session-local — `voltk/portfolio.py` sums cash
+Greeks across a handful of user-picked positions (cash aggregation is always
+valid once each position's own cash Greek is correctly derived) and refuses
+native-unit aggregation across mixed settlement currencies or conventions
+rather than silently summing incompatible units. Not persisted: real
+position tracking is M8's job.
 
 ## Known gaps
 
@@ -267,3 +369,12 @@ exception rather than a retroactive rewrite of what came before.
 - Deribit's DVOL construction is not published in detail, so the model-free
   cross-check is validated on shape and order of magnitude, not against an
   independently reproducible reference number.
+- The shock ladder's skew and curvature magnitudes are documented defaults,
+  not empirically sized the way the level shock is from DVOL. A genuine
+  historical level/skew/curvature PCA needs either a bulk historical-chain
+  endpoint Deribit doesn't publish, or enough accumulated local snapshots
+  (with their SVI fits harvested, which nothing does yet) to decompose —
+  neither exists at this point in the project.
+- The portfolio section in Greeks Details is session-local scaffolding for
+  M4's aggregation requirement, not M8's real position/P&L tracking; it holds
+  nothing between reruns and persists nothing.
