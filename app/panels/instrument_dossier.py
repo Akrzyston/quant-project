@@ -13,6 +13,7 @@ from app.registry import Slot, panel
 from voltk import conventions
 from voltk.conventions import ConventionError
 from voltk.marketdata import MarketDataError
+from voltk.validation import parity_report
 from voltk.universe import UniverseError
 
 VENUE_SPEC = "deribit"
@@ -62,6 +63,7 @@ def render() -> None:
     else:
         _currency_block(universe, summary, focus)
 
+    _parity_block(universe, focus)
     _conventions_block(universe)
 
 
@@ -128,6 +130,37 @@ def _currency_block(universe, summary, currency: str) -> None:
         ]
         st.markdown("**Expiries**")
         st.dataframe(rows, hide_index=True, width="stretch")
+
+
+def _parity_block(universe, currency: str) -> None:
+    marks = data.marks_for(currency)
+    if not marks:
+        return
+
+    with st.expander("Put-call parity on live marks"):
+        report = parity_report(universe, marks, currency=currency)
+        st.caption(report.summary())
+        if not report.rows:
+            return
+        st.dataframe(
+            [
+                {
+                    "Expiry": row.expiry.strftime("%Y-%m-%d"),
+                    "Strike": row.strike,
+                    "C - P": round(row.call_price - row.put_price, 6),
+                    "Expected": round(row.call_price - row.put_price - row.gap, 6),
+                    "Gap (bps of fwd)": round(row.gap_bps_of_forward, 2),
+                    "Breach": row.breached,
+                }
+                for row in sorted(report.rows, key=lambda r: -abs(r.gap))[:15]
+            ],
+            hide_index=True,
+            width="stretch",
+        )
+        st.caption(
+            "Coin-settled parity is C - P = 1 - K/F. Gaps inside the combined "
+            "spread are not evidence of mispricing."
+        )
 
 
 def _conventions_block(universe) -> None:
