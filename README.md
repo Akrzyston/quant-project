@@ -4,7 +4,7 @@ A reusable pricing/risk library with a Streamlit view on the outside. The
 dashboard accumulates one panel per milestone.
 
 ```
-uv run pytest -q                        # 100 tests, 561 cases
+uv run pytest -q                        # 585 cases
 uv run streamlit run streamlit_app.py
 ```
 
@@ -156,6 +156,36 @@ and direct conversion of the quote-currency value — which agree to about 1e-17
 Full argument in `docs/inverse_replication.md`, including the quanto comparison
 and the delta-versus-strike shape.
 
+## M2 — forward curve, chain forensics
+
+Deribit's own chain display converts USD bid/ask off the index price, not the
+forward. Read those numbers at face value and every strike is quietly skewed
+by whatever the basis happens to be that day. `voltk/forward.py` catches this
+by deriving a forward independently: for every expiry, invert put-call parity
+at each two-sided strike — coin-settled `F_K = K / (1 - (C-P))`, quote-settled
+`F_K = K + (C-P)/D` — and take the median across strikes rather than fitting a
+regression. One bad quote does not move the answer, and there is no extra
+machinery to validate. The Forward Curve panel plots this implied forward
+against the traded future and the index; a chain priced off the index instead
+of the forward recovers the index almost exactly, with a basis running to
+hundreds of bps against the future, which is the trap's signature.
+
+`voltk/chain.py` runs a hygiene funnel over the raw chain before anything
+downstream sees it: missing quote, non-positive mark, crossed market, in that
+order. Each instrument is attributed to the first rule that drops it, and
+every rule's dropped fraction is reported against the original chain size, not
+the shrinking survivor pool, so the rules read independently. The Chain View
+panel shows the funnel and every dropped instrument name — nothing is
+discarded without being counted and shown. This is deliberately scoped to raw
+data hygiene; parity and no-arbitrage bound checks are a model-dependent kind
+of judgment and stay in `voltk/validation.py`, with their own display in the
+dossier's parity expander.
+
+`Universe.forward_for` extrapolates flat outside the bracketing futures rather
+than, say, linearly extending the last segment's slope — flat is the least
+surprising choice when there is no information past the last traded future,
+and is confirmed here as the M2 decision rather than revisited.
+
 ## Known gaps
 
 - Deribit options are European with no dividends, so the binomial model has no
@@ -164,5 +194,11 @@ and the delta-versus-strike shape.
 - `Universe.implied_rate` takes the rate from the futures basis via
   `F = S*exp(r*tau)`. There is no rates curve to look up, so this is the only
   source; it is exact for the inverse model, where rho is zero regardless.
-- The chain parity check has only been exercised against synthetic fixtures, not
-  live quotes.
+- The chain parity check, the implied-forward derivation, and the chain filter
+  funnel have only been exercised against synthetic fixtures, not live quotes.
+  Live Deribit marks will show whether the 5bps parity floor and the filter
+  rules need tuning.
+- Chain View and Forward Curve each pull book-summary marks and quotes
+  independently (`data.marks_for` / `data.quotes_for`), so one render issues
+  two live calls to the same endpoint. Matches `marks_for`'s existing
+  uncached-per-render cost; not worth a caching layer for two panels.
