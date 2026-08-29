@@ -10,6 +10,7 @@ Currencies are always passed in, discovered from the venue at runtime.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Iterable, Iterator, Sequence
@@ -140,6 +141,25 @@ class Universe:
                 weight = (expiry - left.expiry).total_seconds() / span
                 return left.forward + weight * (right.forward - left.forward)
         return points[-1].forward
+
+    def implied_rate(self, currency: str, expiry: datetime) -> float:
+        """Continuous rate implied by the futures basis, from F = S*exp(r*tau).
+
+        There is no rates curve to look up here, so the discount rate has to come
+        out of the forward curve. Falls back to zero when the expiry has passed
+        or the index is missing.
+        """
+        tau = (expiry - self.as_of).total_seconds() / (365.0 * 24 * 3600)
+        if tau <= 0:
+            return 0.0
+        try:
+            spot = self.index(currency)
+        except UniverseError:
+            return 0.0
+        forward = self.forward_for(currency, expiry)
+        if spot <= 0 or forward <= 0:
+            return 0.0
+        return math.log(forward / spot) / tau
 
 
 def currencies_with(instruments: Sequence[Instrument], kind: Kind) -> list[str]:
