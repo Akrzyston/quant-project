@@ -66,9 +66,10 @@ class ParityReport:
         )
 
 
-def _pairs(
+def call_put_pairs(
     universe: Universe, currency: str, expiry: datetime
 ) -> list[tuple[float, Instrument, Instrument]]:
+    """Strike, call, put for every strike quoted on both sides at one expiry."""
     calls: dict[float, Instrument] = {}
     puts: dict[float, Instrument] = {}
     for inst in universe.options(currency):
@@ -105,7 +106,7 @@ def parity_report(
         rate = universe.implied_rate(currency, expiry)
         tau = (expiry - universe.as_of).total_seconds() / (365.0 * 24 * 3600)
 
-        for strike, call, put in _pairs(universe, currency, expiry):
+        for strike, call, put in call_put_pairs(universe, currency, expiry):
             call_price, put_price = marks.get(call.name), marks.get(put.name)
             if call_price is None or put_price is None:
                 continue
