@@ -7,8 +7,8 @@ sees the real spot.
 
 Greeks come off the tree rather than from repricing where the tree supplies them.
 Delta and gamma read off nodes at steps one and two, theta off the centre node at
-step two. Vega and rho have no tree analogue and are central differences over
-rebuilt trees.
+step two. Vega, rho, vanna and volga have no tree analogue and are central
+differences over rebuilt trees.
 """
 
 from __future__ import annotations
@@ -112,6 +112,8 @@ class Binomial:
                 vega=0.0,
                 theta=0.0,
                 rho=0.0,
+                vanna=0.0,
+                volga=0.0,
                 unit=Unit.QUOTE,
                 vega_bump=1.0,
                 theta_period=1.0,
@@ -138,12 +140,31 @@ class Binomial:
             - self.price(spot, strike, tau, vol, rate - bump_rate, cp)
         ) / (2.0 * bump_rate)
 
+        # No tree analogue for these either: vanna is the cross-partial and
+        # volga the second vol-partial, both by repricing on rebuilt trees.
+        bump_spot = max(spot * 1e-3, 1e-6)
+        vanna = (
+            self.price(spot + bump_spot, strike, tau, vol + bump_vol, rate, cp)
+            - self.price(spot + bump_spot, strike, tau, vol - bump_vol, rate, cp)
+            - self.price(spot - bump_spot, strike, tau, vol + bump_vol, rate, cp)
+            + self.price(spot - bump_spot, strike, tau, vol - bump_vol, rate, cp)
+        ) / (4.0 * bump_spot * bump_vol)
+
+        base_price = self.price(spot, strike, tau, vol, rate, cp)
+        volga = (
+            self.price(spot, strike, tau, vol + bump_vol, rate, cp)
+            - 2.0 * base_price
+            + self.price(spot, strike, tau, vol - bump_vol, rate, cp)
+        ) / (bump_vol * bump_vol)
+
         return Greeks(
             delta=delta,
             gamma=gamma,
             vega=vega,
             theta=theta,
             rho=rho,
+            vanna=vanna,
+            volga=volga,
             unit=Unit.QUOTE,
             vega_bump=1.0,
             theta_period=1.0,

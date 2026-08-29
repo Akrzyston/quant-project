@@ -23,6 +23,8 @@ class Greeks:
     vega: float
     theta: float
     rho: float
+    vanna: float
+    volga: float
     unit: Unit
     vega_bump: float = 0.01
     theta_period: float = 1.0 / 365.0

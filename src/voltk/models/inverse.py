@@ -79,6 +79,8 @@ class InverseOption:
                 vega=0.0,
                 theta=0.0,
                 rho=0.0,
+                vanna=0.0,
+                volga=0.0,
                 unit=Unit.BASE,
                 vega_bump=1.0,
                 theta_period=1.0,
@@ -99,6 +101,10 @@ class InverseOption:
         # F pdf(d1) == K pdf(d2) leaves a single term in both vega and theta.
         vega = strike * pdf_d2 * root_tau / forward
         theta = -strike * pdf_d2 * vol / (2.0 * root_tau * forward)
+        # Same cancellation carries vanna and volga: cp-independent, like
+        # vega and theta above, not split by the parity-derived put branch.
+        vanna = -(vega / forward) * (1.0 + d2 / (vol * root_tau))
+        volga = vega * d1 * d2 / vol
 
         if cp is CP.PUT:
             delta -= strike / (forward * forward)
@@ -110,6 +116,8 @@ class InverseOption:
             vega=vega,
             theta=theta,
             rho=0.0,
+            vanna=vanna,
+            volga=volga,
             unit=Unit.BASE,
             vega_bump=1.0,
             theta_period=1.0,

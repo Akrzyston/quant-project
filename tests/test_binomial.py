@@ -91,6 +91,8 @@ def test_european_tree_greeks_track_black_scholes(cp) -> None:
     assert numeric.vega == pytest.approx(analytic.vega, rel=1e-2)
     assert numeric.theta == pytest.approx(analytic.theta, rel=5e-2)
     assert numeric.rho == pytest.approx(analytic.rho, rel=1e-2)
+    assert numeric.vanna == pytest.approx(analytic.vanna, rel=5e-3)
+    assert numeric.volga == pytest.approx(analytic.volga, rel=5e-3)
 
 
 def test_american_bounds_include_immediate_exercise() -> None:

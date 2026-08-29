@@ -57,6 +57,8 @@ class Bachelier:
                 vega=0.0,
                 theta=0.0,
                 rho=-tau * self.price(forward, strike, tau, vol, rate, cp),
+                vanna=0.0,
+                volga=0.0,
                 unit=Unit.QUOTE,
                 vega_bump=1.0,
                 theta_period=1.0,
@@ -64,16 +66,23 @@ class Bachelier:
 
         root_tau = math.sqrt(tau)
         sigma_root_tau = vol * root_tau
-        d = s * (forward - strike) / sigma_root_tau
+        # Unsigned: vanna needs this, not the call/put-signed `d` below, to stay
+        # cp-independent the same way vega already is (pdf is an even function,
+        # but a first derivative in d is not, so the sign must be divided back out).
+        d_unsigned = (forward - strike) / sigma_root_tau
+        d = s * d_unsigned
         pdf_d = norm_pdf(d)
         value = df * (s * (forward - strike) * norm_cdf(d) + sigma_root_tau * pdf_d)
+        vega = df * root_tau * pdf_d
 
         return Greeks(
             delta=df * s * norm_cdf(d),
             gamma=df * pdf_d / sigma_root_tau,
-            vega=df * root_tau * pdf_d,
+            vega=vega,
             theta=rate * value - df * vol * pdf_d / (2.0 * root_tau),
             rho=-tau * value,
+            vanna=-vega * d_unsigned / sigma_root_tau,
+            volga=vega * d_unsigned * d_unsigned / vol,
             unit=Unit.QUOTE,
             vega_bump=1.0,
             theta_period=1.0,

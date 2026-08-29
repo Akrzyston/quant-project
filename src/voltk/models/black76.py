@@ -62,6 +62,8 @@ class Black76:
                 vega=0.0,
                 theta=0.0,
                 rho=-tau * self.price(forward, strike, tau, vol, rate, cp),
+                vanna=0.0,
+                volga=0.0,
                 unit=Unit.QUOTE,
                 vega_bump=1.0,
                 theta_period=1.0,
@@ -71,15 +73,18 @@ class Black76:
         root_tau = math.sqrt(tau)
         pdf_d1 = norm_pdf(d1)
         value = df * s * (forward * norm_cdf(s * d1) - strike * norm_cdf(s * d2))
+        vega = df * forward * pdf_d1 * root_tau
 
         # forward * pdf(d1) == strike * pdf(d2), which is what collapses the
         # theta derivative to a single term.
         return Greeks(
             delta=df * s * norm_cdf(s * d1),
             gamma=df * pdf_d1 / (forward * vol * root_tau),
-            vega=df * forward * pdf_d1 * root_tau,
+            vega=vega,
             theta=rate * value - df * forward * pdf_d1 * vol / (2.0 * root_tau),
             rho=-tau * value,
+            vanna=-vega * d2 / (forward * vol * root_tau),
+            volga=vega * d1 * d2 / vol,
             unit=Unit.QUOTE,
             vega_bump=1.0,
             theta_period=1.0,

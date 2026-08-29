@@ -30,7 +30,10 @@ from voltk.models.inverse import InverseOption
 EPS = sys.float_info.epsilon
 RATE = 0.03
 
-TOLERANCE = {"delta": 1e-7, "gamma": 1e-5, "vega": 1e-7, "theta": 1e-6, "rho": 1e-7}
+TOLERANCE = {
+    "delta": 1e-7, "gamma": 1e-5, "vega": 1e-7, "theta": 1e-6, "rho": 1e-7,
+    "vanna": 1e-5, "volga": 1e-5,
+}
 
 FIRST_STEP = 1e-4
 SECOND_STEP = 1e-3
@@ -154,6 +157,30 @@ def test_rho(model, underlying, strike, tau, vol, cp) -> None:
     )
     analytic = model.greeks(underlying, strike, tau, vol, RATE, cp).rho
     assert_matches(analytic, numeric, "rho", value=value, step=step)
+
+
+@pytest.mark.parametrize("model,underlying,strike,tau,vol", CASES)
+@pytest.mark.parametrize("cp", list(CP))
+def test_vanna(model, underlying, strike, tau, vol, cp) -> None:
+    """Vanna is d(vega)/d(underlying), not a derivative of price."""
+    greeks = model.greeks(underlying, strike, tau, vol, RATE, cp)
+    step = underlying * FIRST_STEP
+    numeric = first_derivative(
+        lambda x: model.greeks(x, strike, tau, vol, RATE, cp).vega, underlying, step
+    )
+    assert_matches(greeks.vanna, numeric, "vanna", value=greeks.vega, step=step)
+
+
+@pytest.mark.parametrize("model,underlying,strike,tau,vol", CASES)
+@pytest.mark.parametrize("cp", list(CP))
+def test_volga(model, underlying, strike, tau, vol, cp) -> None:
+    """Volga is d(vega)/d(vol)."""
+    greeks = model.greeks(underlying, strike, tau, vol, RATE, cp)
+    step = vol * FIRST_STEP
+    numeric = first_derivative(
+        lambda v: model.greeks(underlying, strike, tau, v, RATE, cp).vega, vol, step
+    )
+    assert_matches(greeks.volga, numeric, "volga", value=greeks.vega, step=step)
 
 
 def test_inverse_rho_is_exactly_zero() -> None:

@@ -76,6 +76,8 @@ class BlackScholes:
                 vega=0.0,
                 theta=0.0,
                 rho=0.0,
+                vanna=0.0,
+                volga=0.0,
                 unit=Unit.QUOTE,
                 vega_bump=1.0,
                 theta_period=1.0,
@@ -84,6 +86,7 @@ class BlackScholes:
         d1, d2 = self._d1_d2(spot, strike, tau, vol, rate)
         root_tau = math.sqrt(tau)
         pdf_d1 = norm_pdf(d1)
+        vega = spot * carry_df * pdf_d1 * root_tau
 
         theta = (
             -spot * carry_df * pdf_d1 * vol / (2.0 * root_tau)
@@ -94,9 +97,11 @@ class BlackScholes:
         return Greeks(
             delta=s * carry_df * norm_cdf(s * d1),
             gamma=carry_df * pdf_d1 / (spot * vol * root_tau),
-            vega=spot * carry_df * pdf_d1 * root_tau,
+            vega=vega,
             theta=theta,
             rho=s * strike * tau * rate_df * norm_cdf(s * d2),
+            vanna=-vega * d2 / (spot * vol * root_tau),
+            volga=vega * d1 * d2 / vol,
             unit=Unit.QUOTE,
             vega_bump=1.0,
             theta_period=1.0,
