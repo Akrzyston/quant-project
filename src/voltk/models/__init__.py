@@ -10,19 +10,22 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Protocol, runtime_checkable
+from typing import Callable, Protocol, runtime_checkable
 
 from voltk.greeks import Greeks
+from voltk.models.bachelier import Bachelier
+from voltk.models.base import CP, PricingError
+from voltk.models.binomial import Binomial, Dividend
+from voltk.models.black76 import Black76
+from voltk.models.black_scholes import BlackScholes
+from voltk.models.bounds import ArbitrageError, Bounds
+from voltk.models.inverse import InverseOption
+from voltk.models.solver import ImpliedVolResult, SolverError, implied_vol_detailed
 
 
 class Underlying(StrEnum):
     SPOT = "spot"
     FORWARD = "forward"
-
-
-class CP(StrEnum):
-    CALL = "call"
-    PUT = "put"
 
 
 @runtime_checkable
@@ -50,7 +53,8 @@ class ModelSpec:
     milestone: str
     rationale: str
     implemented: bool = False
-    factory: type | None = None
+    factory: Callable[[], PricingModel] | None = None
+    settles_in_base: bool = False
 
     def build(self) -> PricingModel:
         if self.factory is None:
@@ -91,6 +95,8 @@ register(
         vol_convention="lognormal",
         milestone="M1",
         rationale="Spot-based lognormal. The reference case for every other model.",
+        implemented=True,
+        factory=BlackScholes,
     )
 )
 register(
@@ -102,6 +108,8 @@ register(
         vol_convention="lognormal",
         milestone="M1",
         rationale="Forward-based. What options on futures require.",
+        implemented=True,
+        factory=Black76,
     )
 )
 register(
@@ -113,6 +121,8 @@ register(
         vol_convention="normal",
         milestone="M1",
         rationale="Normal vol, for markets where prices can go negative or vol is quoted normally.",
+        implemented=True,
+        factory=Bachelier,
     )
 )
 register(
@@ -124,6 +134,8 @@ register(
         vol_convention="lognormal",
         milestone="M1",
         rationale="Early exercise with discrete dividends. No closed form.",
+        implemented=True,
+        factory=Binomial,
     )
 )
 register(
@@ -134,6 +146,12 @@ register(
         underlying=Underlying.FORWARD,
         vol_convention="lognormal",
         milestone="M1",
-        rationale="Coin-settled, so the quote-currency payoff is non-linear.",
+        rationale=(
+            "Settled in the same asset that determines the payoff, so its value in that "
+            "asset is bounded and concave rather than linear above the strike."
+        ),
+        implemented=True,
+        factory=InverseOption,
+        settles_in_base=True,
     )
 )
