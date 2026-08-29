@@ -17,6 +17,7 @@ EXPECTED = {
     ("greeks_details", "left_rail", 40),
     ("snapshot_control", "left_rail", 50),
     ("instrument_dossier", "main", 10),
+    ("delta_profile", "main", 15),
     ("vol_surface_details", "main", 20),
     ("quoting_parameters", "quoter_rail", 10),
     ("mock_orderbook", "quoter_main", 10),
