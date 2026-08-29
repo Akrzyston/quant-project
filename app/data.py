@@ -91,6 +91,23 @@ def capture_and_save(currencies: tuple[str, ...], note: str = "") -> str:
     return store().save(captured)
 
 
+def universe_for_snapshot(snapshot_id: str) -> Universe:
+    """A specific, explicitly-named snapshot's universe -- unlike
+    active_universe(), not tied to the session's current replay selection.
+    Needed to look at two snapshots (A and B) at once.
+    """
+    return rebuild_universe(store().load(snapshot_id))
+
+
+def marks_for_snapshot(snapshot_id: str, currency: str) -> dict[str, float]:
+    """Mark prices from a specific snapshot, independent of session state."""
+    snapshot = store().load(snapshot_id)
+    component = f"summary:{currency}:{Kind.OPTION}"
+    if component not in snapshot.responses:
+        return {}
+    return dict(parse.mark_prices(snapshot.responses[component]))
+
+
 def marks_for(currency: str) -> dict[str, float]:
     """Venue mark prices for the current source, keyed by instrument name."""
     s = state.get()
