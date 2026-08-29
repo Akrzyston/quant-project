@@ -20,7 +20,8 @@ EXPECTED = {
     ("chain_view", "main", 12),
     ("delta_profile", "main", 15),
     ("forward_curve", "main", 17),
-    ("vol_surface_details", "main", 20),
+    ("smile", "main", 18),
+    ("surface_3d", "main", 19),
     ("quoting_parameters", "quoter_rail", 10),
     ("mock_orderbook", "quoter_main", 10),
 }

@@ -7,6 +7,7 @@ snapshot replay; panels never construct a source themselves.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import streamlit as st
@@ -26,6 +27,11 @@ from voltk.universe import Universe, UniverseSpec, currencies_with
 
 DISCOVERY_TTL = 3600
 CAPTURE_TTL = 30
+# DVOL is Deribit's own already-published index, not something this app
+# derives -- it isn't drift/window-gated like a bracketed capture (30s), and
+# it's only a periodic visual cross-check, so it doesn't need discovery's
+# full hour of staleness tolerance either.
+DVOL_TTL = 900
 
 
 @st.cache_resource
@@ -121,6 +127,24 @@ def quotes_for(currency: str) -> dict[str, parse.Quote]:
     if component not in snapshot.responses:
         return {}
     return dict(parse.quotes(snapshot.responses[component]))
+
+
+@st.cache_data(ttl=DVOL_TTL, show_spinner="Fetching DVOL history...")
+def dvol_for(
+    currency: str, lookback_hours: int = 48, resolution: str = "3600"
+) -> parse.DvolSeries | None:
+    """Deribit's own published DVOL, live-only and best-effort: unavailable
+    is None, never a crash on the cross-check panels. now() is computed
+    inside the cached body so the cache key stays (currency, lookback_hours,
+    resolution) rather than a start/end pair that would shift every rerun.
+    """
+    end = datetime.now(UTC)
+    start = end - timedelta(hours=lookback_hours)
+    try:
+        response = client().fetch_dvol(currency, start=start, end=end, resolution=resolution)
+    except MarketDataError:
+        return None
+    return parse.dvol_series(response, currency=currency)
 
 
 def summarise(universe: Universe) -> dict[str, Any]:
