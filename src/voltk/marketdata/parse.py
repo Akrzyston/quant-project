@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any, Mapping, Sequence
 
 from voltk.instruments import Instrument
@@ -55,6 +56,47 @@ def quotes(response: RawResponse) -> dict[str, Quote]:
             mark=_optional_float(row.get("mark_price")),
         )
     return found
+
+
+@dataclass(frozen=True, slots=True)
+class DvolPoint:
+    timestamp: datetime
+    open: float
+    high: float
+    low: float
+    close: float
+
+
+@dataclass(frozen=True, slots=True)
+class DvolSeries:
+    currency: str
+    points: tuple[DvolPoint, ...]
+
+    @property
+    def latest(self) -> DvolPoint | None:
+        return self.points[-1] if self.points else None
+
+
+def dvol_series(response: RawResponse, *, currency: str) -> DvolSeries:
+    """DVOL candles: [timestamp_ms, open, high, low, close], values a decimal
+    fraction (0.21... = 21% annualized vol), never a percentage. Direct key
+    access on the envelope (unlike book_summary's per-row .get() leniency) --
+    a changed top-level shape should fail loudly, not silently return nothing.
+    """
+    rows = response.result().get("data", [])
+    points = [
+        DvolPoint(
+            timestamp=datetime.fromtimestamp(row[0] / 1000, tz=UTC),
+            open=float(row[1]),
+            high=float(row[2]),
+            low=float(row[3]),
+            close=float(row[4]),
+        )
+        for row in rows
+        if len(row) >= 5
+    ]
+    points.sort(key=lambda p: p.timestamp)
+    return DvolSeries(currency=currency, points=tuple(points))
 
 
 def index_names(instrument_list: Sequence[Instrument]) -> dict[str, str]:

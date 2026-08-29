@@ -90,5 +90,19 @@ class DeribitClient:
     def fetch_currencies(self) -> RawResponse:
         return self.fetch("get_currencies")
 
+    def fetch_dvol(
+        self, currency: str, *, start: datetime, end: datetime, resolution: str = "3600"
+    ) -> RawResponse:
+        """DVOL candle history. resolution is seconds per candle ("1D" also
+        accepted) -- "3600" is hourly.
+        """
+        return self.fetch(
+            "get_volatility_index_data",
+            currency=currency,
+            start_timestamp=int(start.timestamp() * 1000),
+            end_timestamp=int(end.timestamp() * 1000),
+            resolution=resolution,
+        )
+
     def server_time(self) -> datetime:
         return datetime.fromtimestamp(self.fetch("get_time").result() / 1000, tz=UTC)
