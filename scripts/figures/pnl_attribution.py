@@ -2,6 +2,11 @@
 +2 points, one day of theta) applied to an ATM option from the fitted
 surface. A stated scenario rather than two real snapshots so this figure
 reproduces from a single capture, the same as every other figure here.
+
+Coin-settled, like every other figure that prices a real Deribit position
+here -- Black76 would price a quote-settled hypothetical instead, and the
+whole point of this milestone's own coin/cash distinction is that the two
+aren't interchangeable.
 """
 
 from __future__ import annotations
@@ -11,12 +16,12 @@ import matplotlib.pyplot as plt
 from common import load_universe_and_marks, savefig
 from voltk.forward import implied_forward_curve
 from voltk.models.base import CP
-from voltk.models.black76 import Black76
+from voltk.models.inverse import InverseOption
 from voltk.pnl import attribute_pnl
 from voltk.surface import SurfaceError, calibrate_svi_slice, log_moneyness, smile_points
 
 _SECONDS_PER_YEAR = 365.0 * 24 * 3600
-MODEL = Black76()
+MODEL = InverseOption()
 SPOT_SHOCK = 0.01
 VOL_SHOCK = 0.02
 DAYS_ELAPSED = 1.0
@@ -62,8 +67,8 @@ def main() -> None:
         color = "tab:green" if value >= 0 else "tab:red"
         ax.bar(label, value, bottom=cumulative if value >= 0 else cumulative + value, color=color)
         cumulative += value
-    ax.axhline(result.actual_pnl, color="black", linestyle="--", linewidth=1, label=f"Actual P&L ({result.actual_pnl:+.2f})")
-    ax.set_ylabel("P&L")
+    ax.axhline(result.actual_pnl, color="black", linestyle="--", linewidth=1, label=f"Actual P&L ({result.actual_pnl:+.6f})")
+    ax.set_ylabel(f"{currency} (coin)")
     ax.set_title(
         f"{currency} {strike:g} {forward_point.expiry:%d %b %Y} call: "
         f"P&L attribution, +{SPOT_SHOCK:.0%} spot / +{VOL_SHOCK:.0%} vol / {DAYS_ELAPSED:g}d"
