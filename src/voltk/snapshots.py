@@ -26,36 +26,112 @@ from voltk.universe import Universe, UniverseSpec
 
 DEFAULT_DB = Path("data/snapshots.db")
 
+# Every column below exists for a stated reason -- an unexplained column is
+# the kind of thing that quietly becomes load-bearing and unremovable.
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS snapshots (
+    -- Primary key. Encodes as_of + universe spec + a short random suffix
+    -- (_new_id) so ids sort chronologically and collisions are practically
+    -- impossible without a sequence table.
     snapshot_id     TEXT PRIMARY KEY,
+    -- Capture format version (voltk.capture.SCHEMA_VERSION). Distinct from
+    -- library_version: this tracks the CAPTURE'S OWN shape (bracket fields,
+    -- component keys), which can stay stable across many library releases.
     schema_version  INTEGER NOT NULL,
+    -- The voltk release that wrote this row. Checked on load and a mismatch
+    -- raises rather than silently replaying under code that may parse the
+    -- same bytes differently -- the brief's own hard constraint.
     library_version TEXT NOT NULL,
+    -- Human-readable venue/source label (e.g. "Deribit live"), shown in the
+    -- snapshot browser and provenance panel so a reload's origin is visible.
     source_label    TEXT NOT NULL,
+    -- Canonical JSON of the UniverseSpec (currencies, kinds,
+    -- include_inactive) captured -- reconstructs SnapshotMeta.spec exactly,
+    -- and is what a replay's currency/kind filtering is driven from.
     spec_json       TEXT NOT NULL,
+    -- Wall-clock bracket start. Provenance only -- as_of (below), not this,
+    -- drives replay; kept so a degraded-window reason is independently
+    -- checkable against the timestamps that produced it.
     started_at      TEXT NOT NULL,
+    -- Wall-clock bracket end. Same provenance role as started_at; window_ms
+    -- is completed_at - started_at.
     completed_at    TEXT NOT NULL,
+    -- The bracket midpoint. The ONLY clock replay ever reads -- every tau,
+    -- every rate, every downstream number is computed as-of this value, on
+    -- both the original capture and every later reload, which is what makes
+    -- replay bit-for-bit reproducible instead of drifting with the wall
+    -- clock a reload happens to run at.
     as_of           TEXT NOT NULL,
+    -- Bracket duration in milliseconds. Compared against the capture's
+    -- max_window_ms gate; stored (not just used transiently) so a degraded
+    -- capture's actual window is visible after the fact, not just the
+    -- pass/fail verdict.
     window_ms       REAL NOT NULL,
+    -- Canonical JSON of per-currency index drift (bps) across the bracket.
+    -- Same reasoning as window_ms: the number that fed the degraded
+    -- decision stays inspectable, not just the decision itself.
     drift_json      TEXT NOT NULL,
+    -- Canonical JSON of the full Quality object (thresholds and reasons
+    -- included, not just the raw numbers above) -- reconstructs
+    -- SnapshotMeta.quality exactly, including which specific rule(s) fired.
     quality_json    TEXT NOT NULL,
+    -- Precomputed `not quality.ok`, so the snapshot browser and selector can
+    -- filter/flag degraded captures with a plain SQL predicate instead of
+    -- parsing quality_json for every row on every listing.
     degraded        INTEGER NOT NULL,
+    -- Optional free-text label a user attaches when capturing (e.g. "before
+    -- FOMC") -- the only column with no derived/structural role, purely for
+    -- human recognition in the browser.
     note            TEXT NOT NULL DEFAULT '',
+    -- SHA-256 over the sorted, concatenated payload bodies. A second,
+    -- snapshot-level integrity check above the per-payload body_sha256
+    -- below -- lets "did anything in this snapshot change" be answered
+    -- without loading and re-hashing every payload individually.
     content_hash    TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS payloads (
+    -- Which snapshot this payload belongs to. ON DELETE CASCADE: deleting a
+    -- snapshot (the one mutation this store allows) removes its payloads
+    -- atomically rather than leaving orphaned bodies behind.
     snapshot_id   TEXT NOT NULL REFERENCES snapshots(snapshot_id) ON DELETE CASCADE,
+    -- Logical name within the capture, "{kind}:{currency}[:{instrument_kind}]"
+    -- (e.g. "instruments:{currency}:option", "summary:{currency}:future") --
+    -- how rebuild_universe and ReplaySource address a specific response
+    -- without depending on fetch order.
     component     TEXT NOT NULL,
+    -- The venue endpoint that produced this body (e.g.
+    -- "public/get_instruments") -- provenance, and what parse.py's callers
+    -- use to know how to interpret the bytes.
     endpoint      TEXT NOT NULL,
+    -- Canonical JSON of the request parameters sent -- lets a stored payload
+    -- be distinguished from a superficially similar one (e.g. two currencies'
+    -- book summaries) without re-deriving them from component alone.
     params_json   TEXT NOT NULL,
+    -- Venue/source label for this specific payload (usually matches the
+    -- parent snapshot's source_label, but kept per-row since a future
+    -- multi-source capture could mix origins).
     source        TEXT NOT NULL,
+    -- When this specific payload was fetched -- finer-grained than the
+    -- snapshot's own started_at/completed_at bracket, since components are
+    -- fetched at different points within it (definitions first, quotes
+    -- last) and that ordering is itself part of what a degraded-drift
+    -- diagnosis needs.
     retrieved_at  TEXT NOT NULL,
+    -- The verbatim response body. This is the entire point of the store --
+    -- "storing fitted vols instead of the raw chain" is a named failure
+    -- mode; nothing derived is ever what gets persisted here.
     body          BLOB NOT NULL,
+    -- SHA-256 of body, checked on every load. A hash mismatch raises rather
+    -- than returning silently-corrupt bytes to a caller that would trust
+    -- them.
     body_sha256   TEXT NOT NULL,
     PRIMARY KEY (snapshot_id, component)
 );
 
+-- Snapshot listing/selection is always "most recent first" (SnapshotStore.list,
+-- the snapshot control and browser panels); without this the query is a full
+-- table scan and sort on every render as the store grows.
 CREATE INDEX IF NOT EXISTS idx_snapshots_as_of ON snapshots(as_of DESC);
 """
 
