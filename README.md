@@ -241,6 +241,11 @@ where a raw coin-scale mark was fed unconverted into the quote-currency
 Black76 reference/CBOE sum; see the M5 section below for the fix and why it
 went undetected until then.
 
+`dvol_series`'s own parsing had a second, independent bug of the same shape:
+DVOL closes arrive on the wire as a percentage number, not the decimal
+fraction the parser assumed and a regression test asserted without ever
+checking a live response — corrected in M6, see that section for the fix.
+
 **Numerics**: `numpy`/`scipy` are new dependencies as of this milestone, the
 first ones added to `src/voltk/`. Every earlier module (`solver.py`'s
 Newton/bisection, `forward.py`'s median-of-strikes) is hand-rolled on `math`;
@@ -422,6 +427,70 @@ difference between the two snapshots for a coin-settled position, not the
 forward difference the model's native Greeks would suggest. Residual is
 always its own field, shown in the panel, never subtracted away.
 
+## M6 — implied vs realized, variance premium, sticky regime
+
+### A second, independent unit bug — DVOL, found the same way M5's was
+
+Confirmed directly against the live endpoint (BTC and ETH both): DVOL closes
+arrive on the wire as a percentage number (`37.95` meaning `37.95%`), not the
+decimal fraction `dvol_series`'s own docstring claimed and a regression test
+asserted without ever checking a real response. Every synthetic test
+elsewhere in the suite constructs `DvolPoint` directly with already-decimal
+values, so none of them exercised the actual parsing path. This silently
+broke every absolute-level DVOL comparison on live data since M3 —
+`compare_to_dvol` on the Smile panel diffed a model-free vol of `~0.35`
+against a DVOL "close" of `~38`. `shocks.py`'s M4 level-shock sizing was
+unaffected: it uses log-returns of DVOL closes, scale-invariant to a constant
+factor, so the bug never reached a shipped number there. Fixed by dividing by
+100 in `dvol_series`, the same convention `historical_volatility_series`
+already applies to its own percentage-scale endpoint.
+
+### Implied vs realized (Core)
+
+Two new Deribit endpoints, both live-only and best-effort like `dvol_for`
+(`app/data.py`: `historical_vol_for`, `candles_for`): `get_historical_volatility`
+(Deribit's own realized figure, whole trailing history, no window control) and
+`get_tradingview_chart_data` (OHLCV candles for any instrument, spot or
+option — confirmed live that option candles are coin-denominated, matching
+every other Deribit option quote this project handles). `voltk/realized_vol.py`
+computes an independent number from raw perpetual candles — close-to-close
+and Parkinson range estimators, annualised from the candles' own actual
+median timestamp spacing rather than the requested resolution, so a coarser
+or gappier response than asked doesn't silently mis-annualize. The two never
+match Deribit's published figure exactly (~100-200bps apart on a live BTC
+run) — expected, since Deribit's own window/sampling/estimator choice is
+undisclosed, not a discrepancy either number needs to explain away.
+
+### Variance risk premium and sticky regime (Extended)
+
+`voltk/variance_premium.py` pairs DVOL closes to the nearest realized-vol
+observation within a stated gap tolerance (the two are independently sampled
+on different grids) and reports the mean premium, the fraction of the window
+it ran positive, and the exact inversion timestamps.
+
+`voltk/sticky_regime.py` answers the question the brief's own M4 notes leave
+open: does the market behave like sticky-strike or sticky-delta? One day of
+intraday call/put candles across a strike ladder plus the perpetual are
+aligned by exact timestamp, each pair inverted to implied vol using the
+forward *at that timestamp* (put-call parity, `voltk/forward.py`'s
+`forward_from_parity`, extracted so the per-snapshot and per-timestamp call
+sites share one formula — reading the perpetual directly for this would
+reintroduce the exact basis trap M2 exists to avoid). The vol change at each
+fixed strike is regressed on the spot change (first differences, not levels,
+so a shared session trend in both series doesn't get mistaken for the local
+sensitivity `Delta_eff`'s formula needs) and reported alongside both
+theoretical predictions `Surface` already computes:
+`dvol_sticky_strike` (0, by definition) and a same-session
+`dvol_dspot_sticky_delta`. The function reports the comparison; it does not
+declare a winner — full derivation in `docs/vol_dynamics.md`.
+
+### Crypto trades continuously
+
+Every `tau` in this library is already `(expiry - as_of) / 365 days`,
+calendar time throughout — this milestone is the one that explicitly calls
+out *why* that's correct rather than an oversight: crypto has no weekend, no
+exchange holiday, nothing for a trading-time correction to correct for.
+
 ## Known gaps
 
 - Deribit options are European with no dividends, so the binomial model has no
@@ -469,3 +538,22 @@ always its own field, shown in the panel, never subtracted away.
   fixtures (including a deliberately nonzero-rate one), not live Deribit
   marks — the same "needs a live run to confirm" caveat as the rest of the
   surface-fitting stack above.
+- M6 targets Core + Extended, not Advanced: no forecasting model (the brief
+  frames this as "how do I improve the model by appropriate changes to loss,
+  sampling, weighting, or features," not a score chase, and it needs a real
+  backtest harness this project doesn't have yet), and no reconciliation of
+  M3's own model-free variance index against DVOL *through time* — the
+  existing cross-check (`compare_to_dvol`) is still a single-snapshot
+  comparison, not a time series.
+- The sticky-regime regression is one session's worth of intraday candles on
+  whichever strike ladder happens to be listed and liquid enough to have
+  candle history at the moment it's run — a single day is one draw, not a
+  robust estimate, and the brief's own framing treats it that way ("one pull,
+  many observations," not "the definitive answer").
+- `get_historical_volatility` does not accept a start/end window — its
+  trailing-history length (currently about two weeks) is whatever Deribit
+  chooses to return, not something this project controls or can widen for a
+  longer reconciliation.
+- `historical_vol_for` and `candles_for` are live-only, the same established
+  choice as `dvol_for` — history has no meaning to replay against a single
+  snapshot, so the Vol History panel is unavailable in snapshot-replay mode.
