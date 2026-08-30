@@ -351,6 +351,77 @@ native-unit aggregation across mixed settlement currencies or conventions
 rather than silently summing incompatible units. Not persisted: real
 position tracking is M8's job.
 
+## M5 — snapshot browser, A-vs-B compare, P&L attribution
+
+### A real bug in M3, found while smoke-testing this milestone
+
+Every M3/M4 test built its synthetic chain by pricing through `Black76`
+(quote-currency scale). Deribit actually quotes options in the settlement
+(coin) currency — confirmed against Deribit's own docs and support articles,
+"Bitcoin options are priced in Bitcoin" — and `smile_points`/
+`model_free_variance` fed those coin-scale marks straight into a quote-scale
+Black76 reference/CBOE sum with no conversion. Nothing crashed (unsolvable
+points were quietly dropped, or the variance number was just wrong), and
+every existing test happened to already be quote-scale, so nothing caught it
+until this milestone's first synthetic fixture priced through `InverseOption`
+instead. `tests/synthetic_chain.py` now prices via `InverseOption` (matching
+what a real chain actually looks like), and both functions convert
+`price_coin -> price_coin * forward` before use — not a new assumption, but
+`InverseOption`'s own internal identity (`price_coin * forward` equals
+`Black76(forward, ..., rate=0, ...)` exactly, "the discount factor cancels
+against the forward") and Deribit's own stated future-value quoting
+convention. `model_free_variance` needed a second, related fix: that same
+conversion already performs the CBOE formula's own `e^{rT}` undiscounting
+(`Black76(rate=0) = Black76(rate=R)*e^{R*tau}` for any `R`, another exact
+identity), so applying `e^{rT}` again on top double-counts it — caught only
+because `tests/synthetic_chain.py` gained an optional nonzero `rate`
+parameter for this milestone; every prior fixture had rate pinned to exactly
+zero by construction, which can't tell "no extra discount" from "extra
+discount of `e^0=1`."
+
+### Schema and round-trip (Core)
+
+No schema change: the snapshot store already persists only raw response
+bytes (`src/voltk/snapshots.py`), matching the M0 design note that a snapshot
+should be re-parseable "by code that did not exist until M5." The brief's
+"fit parameters" deliverable means re-deriving them at load time via M3's
+`calibrate_surface`, not persisting a new blob — storing fitted vols instead
+of the raw chain is a named failure mode, not a shortcut to take here.
+Bit-for-bit reproduction composes two already-separately-proven halves:
+reload produces an identical universe (already covered by
+`tests/test_snapshots.py`/`tests/test_replay_determinism.py`), and
+`calibrate_surface` is a pure function of its inputs — no RNG, no threading
+in its seed schedule — so calling it twice on identical inputs now has a
+dedicated test proving exact `SVISlice` equality.
+
+### Snapshot browser and A-vs-B compare
+
+`app/data.py` gained `universe_for_snapshot`/`marks_for_snapshot`, explicit-
+snapshot-id variants of `active_universe`/`marks_for` — those two are coupled
+to the session's single current replay selection and can't address two
+arbitrary, explicitly-chosen snapshots at once. The new panel fits a
+`Surface` at each of two chosen snapshots and diffs them on a **unioned**
+k/tau grid (both surfaces' fitted ranges combined before sampling) — sampling
+each on its own range and only then comparing would silently compare a
+fitted point in one against an extrapolated point in the other as if they
+were equally trustworthy. `voltk/surface_diff.py`'s `compare_surfaces`
+answers "what moved" in ATM vol per expiry rather than as a raw SVI-parameter
+diff — SVI is not identifiable, so two calibrations can differ wildly in
+`(a,b,rho,m,sigma)` while implying nearly the same smile; the vol the surface
+actually implies is the only safe comparison unit.
+
+### P&L attribution
+
+`voltk/pnl.py`'s `attribute_pnl` implements the identity in
+`docs/pnl_attribution.md`, which is worth reading in full for the theta sign
+convention (verified against the FD test harness's own sign flip) and a
+second, subtler coin/cash unit trap distinct from M4's: `cash_greeks_from_coin`'s
+delta and gamma are **spot** derivatives, but `InverseOption`'s own Greeks
+are **forward** derivatives — so the attribution's `dS` must be the spot
+difference between the two snapshots for a coin-settled position, not the
+forward difference the model's native Greeks would suggest. Residual is
+always its own field, shown in the panel, never subtracted away.
+
 ## Known gaps
 
 - Deribit options are European with no dividends, so the binomial model has no
@@ -384,3 +455,17 @@ position tracking is M8's job.
 - The portfolio section in Greeks Details is session-local scaffolding for
   M4's aggregation requirement, not M8's real position/P&L tracking; it holds
   nothing between reruns and persists nothing.
+- M5 targets Core + Extended, not Advanced: no bucketed-vega P&L attribution
+  to individual surface control points, no dedicated residual-diagnostics
+  section beyond the panel's own explained/residual split, and no dedicated
+  regression test that a refactored fitter still reproduces every stored
+  snapshot (the bit-for-bit determinism test covers the fitter in isolation,
+  not a sweep across accumulated real snapshot history).
+- `data.dvol_for` stays live-only under snapshot replay (a deliberate M3
+  choice, not new here) — DVOL is a cross-check against an external published
+  index with no bracketed-capture/replay concept, so an A-vs-B comparison's
+  DVOL context is always "now," not "as of either snapshot."
+- The coin/quote conversion fix has only been verified against synthetic
+  fixtures (including a deliberately nonzero-rate one), not live Deribit
+  marks — the same "needs a live run to confirm" caveat as the rest of the
+  surface-fitting stack above.
