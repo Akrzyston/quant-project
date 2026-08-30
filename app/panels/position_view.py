@@ -22,6 +22,7 @@ from voltk.pnl import attribute_pnl
 from voltk.portfolio import Position, aggregate_greeks
 from voltk.realized_vol import close_to_close, infer_periods_per_year
 from voltk.strategy import (
+    backtest_premium_sharpe,
     capacity_from_open_interest,
     check_kill_conditions,
     expected_daily_edge,
@@ -31,6 +32,7 @@ from voltk.strategy import (
 )
 from voltk.surface import SurfaceError, calibrate_svi_slice, log_moneyness, smile_points
 from voltk.universe import UniverseError
+from voltk.variance_premium import variance_risk_premium
 
 REALIZED_LOOKBACK_DAYS = 7
 REALIZED_CANDLE_RESOLUTION = "60"
@@ -118,6 +120,7 @@ def render() -> None:
     realized_vol = _realized_vol(universe, currency)
 
     _thesis_block(entry_vol, realized_vol)
+    _backtest_block(currency, dvol_series)
 
     size, vega_budget = _sizing_block(call_greeks, put_greeks, currency)
     if size == 0:
@@ -199,6 +202,25 @@ def _thesis_block(entry_vol: float, realized_vol: float | None) -> None:
         "Thesis: sell vol when implied sits above realized, delta-hedge to isolate "
         "the bet from direction. A negative premium here is a reason not to put "
         "this position on, not a number to explain away."
+    )
+
+
+def _backtest_block(currency: str, dvol_series) -> None:
+    realized_series = data.historical_vol_for(currency)
+    if not dvol_series or not realized_series:
+        return
+    premium_points = variance_risk_premium(dvol_series.points, realized_series.points)
+    result = backtest_premium_sharpe([p.premium for p in premium_points])
+    if result is None:
+        return
+    st.caption(
+        f"Backtested Sharpe of the daily premium over the trailing window: "
+        f"{result.annualized_sharpe:+.2f} (n={result.n}). Don't take this number at "
+        "face value: it's a vol-premium proxy, not a dollar P&L backtest; the daily "
+        "premium is autocorrelated (vol moves slowly day to day), which inflates "
+        "the sqrt(365) annualization beyond what independent daily draws would "
+        "justify; and it's computed over a window that happened not to contain a "
+        "vol spike. A real Sharpe from actually running this is lower, not higher."
     )
 
 

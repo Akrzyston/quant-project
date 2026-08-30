@@ -12,10 +12,9 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, replace
+from typing import Sequence
 
 from voltk.portfolio import PortfolioGreeks
-
-_SECONDS_PER_DAY = 24.0 * 3600
 
 
 class StrategyError(ValueError):
@@ -122,3 +121,30 @@ def check_kill_conditions(
             detail=f"tau {tau:.4f}y vs floor {min_tau:.4f}y",
         ),
     )
+
+
+@dataclass(frozen=True, slots=True)
+class BacktestedEdge:
+    n: int
+    mean_daily_premium: float
+    std_daily_premium: float
+    annualized_sharpe: float | None
+
+
+def backtest_premium_sharpe(daily_premiums: Sequence[float]) -> BacktestedEdge | None:
+    """Sharpe of the daily implied-minus-realized premium itself, as a
+    directional proxy for the delta-hedged edge -- both scale with
+    implied-minus-realized variance. Not a dollar P&L backtest: there is no
+    historical option chain to reprice a real position against day by day,
+    only the premium series M6 already measures. A backtested number like
+    this is exactly the kind that overstates a real Sharpe -- it's computed
+    over whatever window happened not to contain a vol spike.
+    """
+    n = len(daily_premiums)
+    if n < 2:
+        return None
+    mean = sum(daily_premiums) / n
+    variance = sum((p - mean) ** 2 for p in daily_premiums) / (n - 1)
+    std = math.sqrt(variance)
+    sharpe = (mean / std) * math.sqrt(365.0) if std > 0 else None
+    return BacktestedEdge(n=n, mean_daily_premium=mean, std_daily_premium=std, annualized_sharpe=sharpe)

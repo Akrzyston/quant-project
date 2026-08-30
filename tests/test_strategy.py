@@ -7,6 +7,7 @@ import pytest
 from voltk.portfolio import PortfolioGreeks
 from voltk.strategy import (
     StrategyError,
+    backtest_premium_sharpe,
     capacity_from_open_interest,
     check_kill_conditions,
     expected_daily_edge,
@@ -91,3 +92,15 @@ def test_kill_conditions_none_breached_when_everything_is_fine() -> None:
         tau=0.5, min_tau=0.01,
     )
     assert all(not c.breached for c in checks)
+
+
+def test_backtest_premium_sharpe_matches_a_hand_computed_case() -> None:
+    result = backtest_premium_sharpe([0.01, 0.03, 0.02, -0.01, 0.02])
+    mean = (0.01 + 0.03 + 0.02 - 0.01 + 0.02) / 5
+    variance = sum((p - mean) ** 2 for p in [0.01, 0.03, 0.02, -0.01, 0.02]) / 4
+    assert result.mean_daily_premium == pytest.approx(mean)
+    assert result.annualized_sharpe == pytest.approx((mean / math.sqrt(variance)) * math.sqrt(365.0))
+
+
+def test_backtest_premium_sharpe_none_with_too_few_observations() -> None:
+    assert backtest_premium_sharpe([0.01]) is None
