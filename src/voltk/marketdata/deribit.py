@@ -104,5 +104,29 @@ class DeribitClient:
             resolution=resolution,
         )
 
+    def fetch_historical_volatility(self, currency: str) -> RawResponse:
+        """Deribit's own published realized volatility, whole history, no
+        window control -- the venue does not accept a start/end here.
+        """
+        return self.fetch("get_historical_volatility", currency=currency)
+
+    def fetch_candles(
+        self, instrument_name: str, *, start: datetime, end: datetime, resolution: str = "60"
+    ) -> RawResponse:
+        """OHLCV candles for any instrument, spot or option. resolution is in
+        MINUTES here ("60" = hourly, "1D" also accepted) -- confirmed against
+        the live endpoint. This is a different unit than fetch_dvol's
+        resolution, which is seconds; the two are easy to conflate because
+        both take a string that often reads "3600" or "60" and looks
+        interchangeable.
+        """
+        return self.fetch(
+            "get_tradingview_chart_data",
+            instrument_name=instrument_name,
+            start_timestamp=int(start.timestamp() * 1000),
+            end_timestamp=int(end.timestamp() * 1000),
+            resolution=resolution,
+        )
+
     def server_time(self) -> datetime:
         return datetime.fromtimestamp(self.fetch("get_time").result() / 1000, tz=UTC)
