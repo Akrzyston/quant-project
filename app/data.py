@@ -32,6 +32,12 @@ CAPTURE_TTL = 30
 # it's only a periodic visual cross-check, so it doesn't need discovery's
 # full hour of staleness tolerance either.
 DVOL_TTL = 900
+# Same reasoning as DVOL_TTL: Deribit's own published realized-vol history,
+# not derived, and only a periodic cross-check.
+HISTORICAL_VOL_TTL = 900
+# Candles change faster than either published index but still don't need
+# capture's 30s tightness -- these feed a reconciliation chart, not a live quote.
+CANDLE_TTL = 300
 
 
 @st.cache_resource
@@ -162,6 +168,35 @@ def dvol_for(
     except MarketDataError:
         return None
     return parse.dvol_series(response, currency=currency)
+
+
+@st.cache_data(ttl=HISTORICAL_VOL_TTL, show_spinner="Fetching realized volatility history...")
+def historical_vol_for(currency: str) -> parse.RealizedVolSeries | None:
+    """Deribit's own published realized volatility -- live-only and
+    best-effort, mirroring dvol_for exactly: unavailable is None, never a
+    crash on the reconciliation panel. The venue does not accept a
+    start/end window on this endpoint; it always returns its own trailing
+    history (currently around two weeks, hourly).
+    """
+    try:
+        response = client().fetch_historical_volatility(currency)
+    except MarketDataError:
+        return None
+    return parse.historical_volatility_series(response, currency=currency)
+
+
+@st.cache_data(ttl=CANDLE_TTL, show_spinner="Fetching candles...")
+def candles_for(
+    instrument_name: str, start: datetime, end: datetime, resolution: str = "60"
+) -> parse.CandleSeries | None:
+    """OHLCV candles for one instrument -- live-only and best-effort, same
+    None-on-failure convention as historical_vol_for and dvol_for.
+    """
+    try:
+        response = client().fetch_candles(instrument_name, start=start, end=end, resolution=resolution)
+    except MarketDataError:
+        return None
+    return parse.candle_series(response, instrument_name=instrument_name)
 
 
 def summarise(universe: Universe) -> dict[str, Any]:
