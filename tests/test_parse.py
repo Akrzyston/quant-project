@@ -20,16 +20,17 @@ def _response(rows: list[dict]) -> RawResponse:
     )
 
 
-def test_quotes_extracts_bid_ask_mark() -> None:
+def test_quotes_extracts_bid_ask_mark_open_interest() -> None:
     response = _response(
         [{"instrument_name": "XBT-1JAN27-60000-C", "bid_price": 0.04,
-          "ask_price": 0.05, "mark_price": 0.045}]
+          "ask_price": 0.05, "mark_price": 0.045, "open_interest": 120.5}]
     )
     found = parse.quotes(response)
     quote = found["XBT-1JAN27-60000-C"]
     assert quote.bid == 0.04
     assert quote.ask == 0.05
     assert quote.mark == 0.045
+    assert quote.open_interest == 120.5
 
 
 def test_quotes_skips_rows_missing_instrument_name() -> None:

@@ -37,6 +37,7 @@ class Quote:
     bid: float | None
     ask: float | None
     mark: float | None
+    open_interest: float | None = None
 
 
 def _optional_float(value: Any) -> float | None:
@@ -44,7 +45,7 @@ def _optional_float(value: Any) -> float | None:
 
 
 def quotes(response: RawResponse) -> dict[str, Quote]:
-    """Instrument name to bid/ask/mark, skipping rows the venue has not named."""
+    """Instrument name to bid/ask/mark/open_interest, skipping rows the venue has not named."""
     found: dict[str, Quote] = {}
     for row in book_summary(response):
         name = row.get("instrument_name")
@@ -54,6 +55,7 @@ def quotes(response: RawResponse) -> dict[str, Quote]:
             bid=_optional_float(row.get("bid_price")),
             ask=_optional_float(row.get("ask_price")),
             mark=_optional_float(row.get("mark_price")),
+            open_interest=_optional_float(row.get("open_interest")),
         )
     return found
 
