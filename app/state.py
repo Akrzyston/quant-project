@@ -18,9 +18,13 @@ _STATE_KEY = "voltk_state"
 @dataclass
 class QuoteParams:
     levels: int = 3
-    width_bps: float = 50.0
     size: float = 1.0
-    inventory_skew: float = 0.0
+    level_growth: float = 0.5
+    fit_coef: float = 1.0
+    gamma_coef: float = 1.0
+    liquidity_coef: float = 0.5
+    floor_dollar: float = 0.0
+    risk_aversion: float = 0.0
 
 
 @dataclass
