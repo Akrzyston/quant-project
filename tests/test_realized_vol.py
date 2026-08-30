@@ -26,21 +26,20 @@ def _candles(closes: list[float], *, step: timedelta = timedelta(hours=1), highs
     ]
 
 
-def test_infer_periods_per_year_reads_hourly_spacing() -> None:
-    candles = _candles([100.0, 101.0, 102.0])
-    periods = infer_periods_per_year(candles)
-    assert periods == pytest.approx(365.0 * 24)
+def test_infer_periods_per_year_reads_actual_candle_spacing_not_a_requested_resolution() -> None:
+    assert infer_periods_per_year(_candles([100.0, 101.0, 102.0])) == pytest.approx(365.0 * 24)
+    quarter_hour = _candles([100.0, 101.0, 102.0], step=timedelta(minutes=15))
+    assert infer_periods_per_year(quarter_hour) == pytest.approx(365.0 * 24 * 4)
 
 
-def test_infer_periods_per_year_ignores_the_requested_resolution_and_uses_actual_gaps() -> None:
-    candles = _candles([100.0, 101.0, 102.0], step=timedelta(minutes=15))
-    periods = infer_periods_per_year(candles)
-    assert periods == pytest.approx(365.0 * 24 * 4)
-
-
-def test_infer_periods_per_year_needs_at_least_two_candles() -> None:
+def test_realized_vol_functions_reject_too_few_candles() -> None:
+    one_candle = _candles([100.0])
     with pytest.raises(RealizedVolError):
-        infer_periods_per_year(_candles([100.0]))
+        infer_periods_per_year(one_candle)
+    with pytest.raises(RealizedVolError):
+        close_to_close(one_candle, periods_per_year=365.0 * 24)
+    with pytest.raises(RealizedVolError):
+        parkinson([], periods_per_year=365.0 * 24)
 
 
 def test_close_to_close_recovers_a_known_constant_step_vol() -> None:
@@ -62,11 +61,6 @@ def test_close_to_close_recovers_a_known_constant_step_vol() -> None:
     assert result.value == pytest.approx(expected, rel=1e-9)
 
 
-def test_close_to_close_needs_at_least_two_candles() -> None:
-    with pytest.raises(RealizedVolError):
-        close_to_close(_candles([100.0]), periods_per_year=365.0 * 24)
-
-
 def test_parkinson_is_zero_for_a_flat_high_equals_low_series() -> None:
     candles = _candles([100.0, 101.0, 99.0], highs=[100.0, 101.0, 99.0], lows=[100.0, 101.0, 99.0])
     result = parkinson(candles, periods_per_year=365.0 * 24)
@@ -78,8 +72,3 @@ def test_parkinson_is_positive_when_ranges_are_nonzero() -> None:
     result = parkinson(candles, periods_per_year=365.0 * 24)
     assert result.value > 0.0
     assert result.n_observations == 3
-
-
-def test_parkinson_needs_at_least_one_usable_candle() -> None:
-    with pytest.raises(RealizedVolError):
-        parkinson([], periods_per_year=365.0 * 24)

@@ -19,9 +19,9 @@ def _realized(hours: int, value: float) -> RealizedVolPoint:
     return RealizedVolPoint(timestamp=START + timedelta(hours=hours), value=value)
 
 
-def test_variance_risk_premium_pairs_matching_timestamps() -> None:
+def test_variance_risk_premium_pairs_the_nearest_realized_point() -> None:
     dvol = [_dvol(0, 0.60), _dvol(1, 0.62)]
-    realized = [_realized(0, 0.50), _realized(1, 0.55)]
+    realized = [_realized(-2, 0.40), _realized(0, 0.50), _realized(1, 0.55)]
 
     points = variance_risk_premium(dvol, realized)
 
@@ -29,15 +29,6 @@ def test_variance_risk_premium_pairs_matching_timestamps() -> None:
     assert points[0].implied == 0.60
     assert points[0].realized == 0.50
     assert points[0].premium == pytest.approx(0.10)
-
-
-def test_variance_risk_premium_matches_the_nearest_realized_point() -> None:
-    dvol = [_dvol(0, 0.60)]
-    realized = [_realized(-2, 0.40), _realized(0, 0.48)]
-
-    points = variance_risk_premium(dvol, realized)
-
-    assert points[0].realized == 0.48
 
 
 def test_variance_risk_premium_drops_points_beyond_the_max_gap() -> None:

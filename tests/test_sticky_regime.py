@@ -58,14 +58,19 @@ def test_observations_from_candles_recovers_the_forward_and_vol_used_to_construc
         assert obs.implied_vol == pytest.approx(true_vol, abs=1e-6)
 
 
-def test_observations_from_candles_drops_timestamps_missing_from_any_series() -> None:
+def test_observations_from_candles_drops_timestamps_missing_or_past_expiry() -> None:
     t0, t1 = EXPIRY - timedelta(days=1), EXPIRY - timedelta(days=1) + timedelta(hours=1)
+    after_expiry = EXPIRY + timedelta(hours=1)
     forward, vol = 69000.0, 0.5
     tau0, tau1 = _tau(t0), _tau(t1)
 
-    calls = [_candle(t0, _coin_price(CP.CALL, forward, tau0, vol)), _candle(t1, _coin_price(CP.CALL, forward, tau1, vol))]
-    puts = [_candle(t0, _coin_price(CP.PUT, forward, tau0, vol))]  # t1 missing on the put side
-    perps = [_candle(t0, forward), _candle(t1, forward)]
+    calls = [
+        _candle(t0, _coin_price(CP.CALL, forward, tau0, vol)),
+        _candle(t1, _coin_price(CP.CALL, forward, tau1, vol)),
+        _candle(after_expiry, 0.01),
+    ]
+    puts = [_candle(t0, _coin_price(CP.PUT, forward, tau0, vol)), _candle(after_expiry, 0.01)]  # t1 missing
+    perps = [_candle(t0, forward), _candle(t1, forward), _candle(after_expiry, forward)]
 
     observations = observations_from_candles(
         CandleSeries(instrument_name="X-C", candles=tuple(calls)),
@@ -77,21 +82,6 @@ def test_observations_from_candles_drops_timestamps_missing_from_any_series() ->
 
     assert len(observations) == 1
     assert observations[0].timestamp == t0
-
-
-def test_observations_from_candles_skips_timestamps_past_expiry() -> None:
-    after = EXPIRY + timedelta(hours=1)
-    candle = _candle(after, 0.01)
-
-    observations = observations_from_candles(
-        CandleSeries(instrument_name="X-C", candles=(candle,)),
-        CandleSeries(instrument_name="X-P", candles=(candle,)),
-        CandleSeries(instrument_name="X-PERPETUAL", candles=(_candle(after, 69000.0),)),
-        strike=STRIKE,
-        expiry=EXPIRY,
-    )
-
-    assert observations == ()
 
 
 def test_regress_vol_on_spot_recovers_an_exact_known_slope() -> None:
@@ -112,19 +102,15 @@ def test_regress_vol_on_spot_recovers_an_exact_known_slope() -> None:
     assert result.n_observations == 4
 
 
-def test_regress_vol_on_spot_needs_at_least_three_observations() -> None:
-    obs = [
+def test_regress_vol_on_spot_rejects_too_few_observations_or_no_spot_movement() -> None:
+    too_few = [
         VolObservation(timestamp=EXPIRY - timedelta(hours=1), spot=69000.0, forward=69000.0, implied_vol=0.5),
         VolObservation(timestamp=EXPIRY, spot=69100.0, forward=69100.0, implied_vol=0.51),
     ]
-    with pytest.raises(StickyRegimeError):
-        regress_vol_on_spot(obs, strike=STRIKE, sticky_delta_prediction=0.0)
-
-
-def test_regress_vol_on_spot_rejects_a_session_with_no_spot_movement() -> None:
-    obs = [
+    flat_spot = [
         VolObservation(timestamp=EXPIRY - timedelta(hours=i), spot=69000.0, forward=69000.0, implied_vol=0.5)
         for i in range(3, 0, -1)
     ]
-    with pytest.raises(StickyRegimeError):
-        regress_vol_on_spot(obs, strike=STRIKE, sticky_delta_prediction=0.0)
+    for obs in (too_few, flat_spot):
+        with pytest.raises(StickyRegimeError):
+            regress_vol_on_spot(obs, strike=STRIKE, sticky_delta_prediction=0.0)
