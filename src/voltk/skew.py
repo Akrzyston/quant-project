@@ -1,11 +1,7 @@
-"""Skew-adjusted delta.
-
-Delta_eff = Delta_flat + Vega * dsigma/d(underlying). Under sticky-strike this
-adjustment is exactly zero -- the fitted smile is pinned to absolute strikes
-by definition, so it doesn't move as spot/forward move, and flat delta is
-already the right answer. Under sticky-delta the smile follows the
-underlying, so the adjustment is real. M6 later determines empirically which
-regime actually holds against real intraday data; this only computes both.
+"""Skew-adjusted delta: Delta_eff = Delta_flat + Vega * dsigma/d(underlying).
+Zero under sticky-strike (the smile is pinned to absolute strikes by
+definition); real under sticky-delta. M6 measures empirically which regime
+holds; this just computes both.
 """
 
 from __future__ import annotations

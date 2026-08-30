@@ -252,9 +252,8 @@ def _attribute_one(universe_a, marks_a, universe_b, marks_b, currency, inst_a, i
         return None
 
     if spec.settles_in_base:
-        # cash_greeks_from_coin's delta/gamma are SPOT derivatives
-        # (dV_cash/dS), not forward derivatives -- d_underlying must match
-        # that, not the model's own forward-parameterised convention.
+        # cash_greeks_from_coin's delta/gamma are spot derivatives, so
+        # d_underlying must be the spot difference, not the forward one.
         spot_a = universe_a.index(currency)
         spot_b = universe_b.index(currency)
         greeks_a = cash_greeks_from_coin(coin_a, price_a, forward_a, spot_a)

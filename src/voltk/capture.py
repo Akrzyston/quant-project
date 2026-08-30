@@ -1,13 +1,8 @@
-"""Synchronous capture.
-
-A chain captured at a different moment from its underlying gives a wrong surface
-and nothing downstream can detect it. REST cannot give a true instant, so the
-capture is bracketed: the index is read before and after everything else, and
-the drift and elapsed window are recorded and gated. Breaching either limit
-marks the capture degraded rather than discarding it.
-
-Order matters: definitions move slowest and go first, quotes go last, closest to
-the second index read.
+"""Synchronous capture. REST cannot give a true instant, so the capture is
+bracketed: index read before and after everything else, with drift and
+elapsed window recorded and gated -- a breach marks the capture degraded
+rather than discarding it. Order matters: slowest-moving data (definitions)
+goes first, quotes go last, closest to the second index read.
 """
 
 from __future__ import annotations
@@ -142,9 +137,8 @@ def capture(
 
     completed_at = datetime.now(UTC)
 
-    # A replayed source has no capture window: the observation time is the one
-    # recorded in the snapshot. Reading the clock here would make the same
-    # snapshot produce a different tau on every reload.
+    # A replayed source has no capture window -- reading the clock here would
+    # make the same snapshot produce a different tau on every reload.
     live = source.is_live
     window_ms = (completed_at - started_at).total_seconds() * 1000 if live else 0.0
 

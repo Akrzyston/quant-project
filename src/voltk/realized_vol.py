@@ -1,11 +1,8 @@
 """Realized volatility computed independently from raw candles.
 
-Deribit's own get_historical_volatility number is a black box: the venue
-does not document its sampling frequency, window length, or estimator. This
-module computes an explicit, inspectable number from raw perpetual candles
-so the two can be reconciled rather than trusted blindly -- the same
-discipline this project already applies to Deribit's implied numbers
-(mark_iv, index-vs-forward).
+Deribit's own get_historical_volatility number is a black box (undocumented
+sampling frequency, window, estimator), so this computes one from raw
+perpetual candles to reconcile against instead of trusting blindly.
 """
 
 from __future__ import annotations
@@ -76,11 +73,9 @@ def close_to_close(candles: Sequence[Candle], *, periods_per_year: float) -> Rea
 
 
 def parkinson(candles: Sequence[Candle], *, periods_per_year: float) -> RealizedVolResult:
-    """Range estimator using each candle's own high/low, not just its close,
-    so it captures intra-candle movement close-to-close discards entirely.
-    About 5x more statistically efficient than close-to-close for the same
-    sample size (Parkinson, 1980) -- at the cost of assuming pure diffusion
-    (no jumps, no drift), an assumption close-to-close doesn't need.
+    """Range estimator using each candle's own high/low, not just its close.
+    More statistically efficient than close-to-close, at the cost of
+    assuming pure diffusion (no jumps).
 
     sigma^2 = (1 / (4*ln2*N)) * sum(ln(H_i/L_i)^2)
     """

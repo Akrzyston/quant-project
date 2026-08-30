@@ -1,11 +1,9 @@
 """Model-free variance index.
 
-CBOE-style variance-swap replication: sum OTM option prices across the
-strike ladder, weighted by 1/K^2 and local strike spacing. No model is fit,
-which is what makes it checkable against Deribit's own DVOL. Uses the
-parity-derived forward (voltk.forward.ImpliedForward), not
-Universe.forward_for -- reading the forward off the index instead produces
-a quietly wrong number, the same trap M2 exists to avoid.
+CBOE-style variance-swap replication over the OTM strike ladder. No model
+is fit, which is what makes it checkable against Deribit's own DVOL. Uses
+the parity-derived forward, not the traded future -- reading the forward
+off the index instead is the trap M2 exists to avoid.
 """
 
 from __future__ import annotations
@@ -21,9 +19,7 @@ from voltk.universe import Universe
 
 _SECONDS_PER_YEAR = 365.0 * 24 * 3600
 
-# Three usable strikes gives one interior central-difference node plus the two
-# one-sided ends -- fewer than that and there is no curvature information in
-# the sum, only noise.
+# Below three usable strikes there's no curvature information, only noise.
 MIN_STRIKES_FOR_VARIANCE = 3
 
 
@@ -111,13 +107,10 @@ def model_free_variance(
 
     sigma^2(T) = (2/T) * sum_i [dK_i/K_i^2] * e^(rT) * Q(K_i) - (1/T)*(F/K0 - 1)^2
 
-    Q(K) is the OTM price (put below K0, call above, averaged at K0); dK_i is
-    the central difference between usable strikes. Returns None below
-    MIN_STRIKES_FOR_VARIANCE rather than raising. For a coin-settled chain,
-    `_otm_ladder` already converts each mark to quote-currency via
-    `price_coin * forward`, which is exactly the rate=0 Black76 price -- so
-    it has already undone the e^{rT} this formula would otherwise apply;
-    `discount` stays 1.0 in that case to avoid double-counting it.
+    Returns None below MIN_STRIKES_FOR_VARIANCE rather than raising. For a
+    coin-settled chain, `_otm_ladder`'s conversion already undoes the e^{rT}
+    this formula would otherwise apply, so `discount` stays 1.0 to avoid
+    double-counting it.
     """
     currency, expiry, forward = implied_forward.currency, implied_forward.expiry, implied_forward.forward
     k0, k0_extrapolated, ladder = _otm_ladder(
@@ -196,14 +189,10 @@ def constant_maturity_variance(
     *,
     currency: str,
 ) -> ConstantMaturityVariance | None:
-    """CBOE interpolation-to-constant-maturity, in year-fractions.
-
-    variance_target = [T1*v1*(T2-Tt) + T2*v2*(Tt-T1)] / (T2-T1) / Tt
-
-    Linear interpolation of TOTAL variance (T*sigma^2) between the two
-    nearest usable slices, then re-annualized. Degrades to extrapolation past
-    either end (flagged, not raised) and to the single available slice,
-    un-interpolated, when only one exists.
+    """CBOE interpolation-to-constant-maturity: linear in total variance
+    between the two nearest slices, then re-annualized. Degrades to
+    extrapolation past either end (flagged, not raised), or to the single
+    available slice when only one exists.
     """
     if target_tau <= 0:
         raise VarianceError(f"target_tau must be positive, got {target_tau!r}.")

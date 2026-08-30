@@ -1,10 +1,6 @@
-"""Surface comparison: what moved between two fitted surfaces.
-
-Deliberately not a raw SVI-parameter diff -- SVI is not identifiable, so two
-parameterizations can differ wildly in (a,b,rho,m,sigma) while producing
-nearly identical smiles. The only safe comparison unit is the vol the
-surface actually implies, evaluated at its vertex k=0 (the ATM point in
-log-moneyness terms).
+"""Surface comparison: what moved between two fitted surfaces, by ATM vol
+(k=0) per expiry, not a raw SVI-parameter diff -- SVI isn't identifiable,
+so two parameterizations can differ wildly while implying the same smile.
 """
 
 from __future__ import annotations

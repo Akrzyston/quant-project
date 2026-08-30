@@ -27,14 +27,10 @@ from voltk.universe import Universe, UniverseSpec, currencies_with
 
 DISCOVERY_TTL = 3600
 CAPTURE_TTL = 30
-# DVOL is Deribit's own already-published index, not something this app
-# derives -- it isn't drift/window-gated like a bracketed capture (30s), and
-# it's only a periodic visual cross-check, so it doesn't need discovery's
-# full hour of staleness tolerance either.
+# DVOL is Deribit's own published index, a periodic cross-check rather than
+# a drift/window-gated capture, so it doesn't need discovery's full hour.
 DVOL_TTL = 900
-# Same reasoning as DVOL_TTL: Deribit's own published realized-vol history,
-# not derived, and only a periodic cross-check.
-HISTORICAL_VOL_TTL = 900
+HISTORICAL_VOL_TTL = 900  # same reasoning as DVOL_TTL
 # Candles change faster than either published index but still don't need
 # capture's 30s tightness -- these feed a reconciliation chart, not a live quote.
 CANDLE_TTL = 300
@@ -172,11 +168,9 @@ def dvol_for(
 
 @st.cache_data(ttl=HISTORICAL_VOL_TTL, show_spinner="Fetching realized volatility history...")
 def historical_vol_for(currency: str) -> parse.RealizedVolSeries | None:
-    """Deribit's own published realized volatility -- live-only and
-    best-effort, mirroring dvol_for exactly: unavailable is None, never a
-    crash on the reconciliation panel. The venue does not accept a
-    start/end window on this endpoint; it always returns its own trailing
-    history (currently around two weeks, hourly).
+    """Deribit's own published realized volatility, live-only and
+    best-effort like dvol_for. No start/end control -- the venue always
+    returns its own trailing history.
     """
     try:
         response = client().fetch_historical_volatility(currency)

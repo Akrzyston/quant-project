@@ -1,14 +1,7 @@
-"""Empirical sticky-strike vs sticky-delta test.
-
-Surface already gives the theoretical vol sensitivity to spot under an
-assumed sticky-delta regime (dvol_dspot_sticky_delta) and sticky-strike
-(zero, by definition). This module measures what the market actually does:
-invert one day of intraday option candles to implied vol at a fixed strike,
-regress the vol change against the spot change, and report the empirical
-slope alongside both predictions. Inverting a candle needs the forward AT
-THAT TIMESTAMP, not the forward at capture time, since tau shrinks through
-the session -- derived per timestamp via the same put-call parity identity
-voltk.forward uses for a whole snapshot.
+"""Empirical sticky-strike vs sticky-delta test: invert a day of intraday
+option candles to implied vol per timestamp (forward from put-call parity,
+not the perpetual directly) and regress the vol change on the spot change,
+against Surface's own theoretical predictions for each regime.
 """
 
 from __future__ import annotations

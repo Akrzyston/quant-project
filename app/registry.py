@@ -1,11 +1,6 @@
-"""Panel registry.
-
-A milestone adds a panel by adding one file under app/panels/ and decorating its
-render function. app/main.py does not change.
-
-slot and order are explicit arguments rather than inferred from filenames, and
-discover() lets ImportError propagate so a broken panel crashes rather than
-silently vanishing from the screen.
+"""Panel registry: a milestone adds a panel by adding one file under
+app/panels/ and decorating its render function; app/main.py never changes.
+slot/order are explicit, never inferred from filenames.
 """
 
 from __future__ import annotations

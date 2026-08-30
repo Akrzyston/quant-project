@@ -1,11 +1,8 @@
 """Validation against observed quotes.
 
-Parity holds exactly in the models. On a real chain it does not: quotes are
-stale, wide, and marked at different instants, so the useful question is how far
-off each pair sits and whether that is explained by the spread.
-
-A breach wider than the combined spread is a data problem or a stale mark, not
-an arbitrage. This module reports; it does not clean.
+Parity holds exactly in the models but not on a real chain (stale, wide,
+asynchronous quotes), so a breach wider than the combined spread is a data
+problem, not an arbitrage. Reports; does not clean.
 """
 
 from __future__ import annotations

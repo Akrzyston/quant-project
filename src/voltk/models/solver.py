@@ -18,9 +18,8 @@ PRICE_TOLERANCE = 1e-14
 VOL_TOLERANCE = 1e-14
 MAX_VOL = 50.0
 
-# Below this vega the price carries almost no information about vol: the quote
-# is indistinguishable from intrinsic, and any vol in a wide band reproduces it.
-# The round trip still closes on price, so this is reported rather than raised.
+# Below this vega the quote is indistinguishable from intrinsic, so this is
+# reported (not identified) rather than raised.
 VEGA_FLOOR = 1e-8
 
 

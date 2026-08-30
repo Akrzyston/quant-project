@@ -2,12 +2,9 @@
 
 ΔPnL ≈ Δ·ΔS + ½Γ·ΔS² + Vega·Δσ + Θ·Δt + residual
 
-Terms come from the start-of-period Greeks, checked against the actual
-repriced difference; the residual (cross terms, higher-order moves,
-misspecification) is always its own field, never absorbed into another
-term. Vega and theta divide by vega_bump/theta_period rather than assuming
-"per unit vol" and "per year," since those are real per-instance metadata
-on Greeks, not a global constant.
+Terms come from the start-of-period Greeks; the residual is always its own
+field, never absorbed. Vega and theta divide by vega_bump/theta_period
+rather than assuming a fixed unit convention.
 """
 
 from __future__ import annotations

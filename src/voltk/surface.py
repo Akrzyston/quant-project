@@ -1,16 +1,10 @@
 """Volatility surface: raw SVI per expiry, stitched across strike and time.
 
-Fit in total variance w = sigma^2 * tau against log-moneyness k = ln(K/F),
-not raw vol against strike: w is additive under linear-in-T interpolation,
-and calendar no-arbitrage is exactly its monotonicity in T -- neither holds
-for vol against strike, and strikes aren't comparable across expiries the
-way moneyness is.
-
-Structural prior is raw SVI (Gatheral): w(k) = a + b{rho(k-m) + sqrt((k-m)^2+sigma^2)}.
-Linear in (a, b*rho, b) for fixed (m, sigma), so most of the fit is
-well-conditioned; wings grow linearly in total variance, so vol grows like
-sqrt(|k|) instead of exploding; and Gatheral's own g(k) gives an exact
-butterfly-arbitrage test rather than a numerical proxy.
+Fit in total variance w(k) = a + b{rho(k-m) + sqrt((k-m)^2+sigma^2)} against
+log-moneyness k = ln(K/F), not vol against strike: w is additive under time
+interpolation, and calendar no-arbitrage is exactly its monotonicity in T.
+Raw SVI's wings also grow linearly in variance, avoiding blowup, and its
+own g(k) gives an exact butterfly test.
 """
 
 from __future__ import annotations
@@ -75,16 +69,11 @@ def smile_points(
     *,
     settles_in_base: bool = True,
 ) -> tuple[SmilePoint, ...]:
-    """One point per strike with a usable OTM mark: put below the forward,
-    call above, call at the forward itself. Always solved against a fixed
-    Black76() reference, never the UI's selected model, so the fit doesn't
-    drift with the point-pricing selector. Deribit quotes options in coin
-    terms, so a coin-settled chain converts each mark to quote-currency
-    first (`price_coin * forward`, InverseOption's own rate-cancelling
-    identity) and solves at rate=0, not the universe's implied rate -- using
-    the real rate reintroduces a few percent of vol error. Skips strikes the
-    solver can't price rather than raising; unidentified points are kept for
-    display but filtered out before calibration.
+    """One point per strike with a usable OTM mark, solved against a fixed
+    Black76() reference at rate=0 so a coin-settled chain (converted first
+    via `price_coin * forward`) doesn't drift with the UI's model selector
+    or the universe's implied rate. Skips unpriceable strikes; unidentified
+    points are kept for display but filtered before calibration.
     """
     currency, expiry, forward = implied_forward.currency, implied_forward.expiry, implied_forward.forward
     tau = (expiry - universe.as_of).total_seconds() / _SECONDS_PER_YEAR
@@ -179,10 +168,8 @@ def calibrate_svi_slice(
     points: Sequence[SmilePoint], *, currency: str, expiry: datetime, tau: float
 ) -> SVISlice:
     """Raw SVI fit via scipy.optimize.least_squares, bounded to stay a valid
-    slice (b>=0, |rho|<1, sigma>0). The joint non-negative-variance constraint
-    a + b*sigma*sqrt(1-rho^2) >= 0 isn't a per-parameter box, so it's checked
-    post-fit; a handful of re-seeded attempts (different initial sigma) covers
-    the case where the first seed lands somewhere that violates it.
+    slice; a few re-seeded attempts cover a first seed landing outside the
+    joint non-negative-variance constraint.
     """
     identified = [p for p in points if p.identified]
     if len(identified) < MIN_POINTS_FOR_SVI:
@@ -362,12 +349,9 @@ def calendar_reports(slices: Sequence[SVISlice]) -> tuple[CalendarReport, ...]:
 
 @dataclass(frozen=True, slots=True)
 class Surface:
-    """A continuous strike/time surface stitched from independently-fit
-    slices. Interpolates total variance linearly in T between bracketing
-    slices at fixed k (the CBOE constant-maturity formula, and automatically
-    calendar-consistent whenever the endpoints already are). Extrapolates
-    past the fitted range by holding w(k,T)/T constant at the nearest slice
-    -- the same flat-rate idea SVI's own wings apply in the strike direction.
+    """Independently-fit slices stitched into one continuous surface: total
+    variance interpolates linearly in T at fixed k, and extrapolates past
+    the fitted range by holding w(k,T)/T constant at the nearest slice.
     """
 
     slices: tuple[SVISlice, ...]
@@ -398,12 +382,9 @@ class Surface:
     def dvol_dforward_sticky_delta(
         self, strike: float, forward: float, tau: float, *, bump: float = 1e-3
     ) -> float:
-        """d(vol)/d(forward) under sticky-delta: the fitted curve is held fixed
-        in relative log-moneyness k = ln(K/F), so as the forward moves, vol at
-        a fixed absolute strike moves with it -- the smile "follows the
-        underlying." This is sticky-delta, not sticky-strike: genuine
-        sticky-strike means the smile is pinned to absolute strikes, so vol at
-        a fixed K does not move at all (see dvol_sticky_strike).
+        """d(vol)/d(forward) under sticky-delta: the fitted curve is held
+        fixed in k = ln(K/F), so vol at a fixed strike moves with the
+        forward. Genuine sticky-strike is zero instead (dvol_sticky_strike).
         """
         up, down = forward * (1.0 + bump), forward * (1.0 - bump)
         vol_up = self.vol(log_moneyness(strike, up), tau)
@@ -413,17 +394,13 @@ class Surface:
     def dvol_dspot_sticky_delta(
         self, strike: float, forward: float, tau: float, rate: float, *, bump: float = 1e-3
     ) -> float:
-        """d(vol)/d(spot) under sticky-delta, chain-ruled through the exact
-        futures-basis relationship F = S*exp(rate*tau) this project already
-        uses (Universe.implied_rate): dF/dS = exp(rate*tau), holding rate and
-        tau fixed as spot moves.
+        """d(vol)/d(spot) under sticky-delta, chain-ruled through
+        F = S*exp(rate*tau): dF/dS = exp(rate*tau).
         """
         return self.dvol_dforward_sticky_delta(strike, forward, tau, bump=bump) * math.exp(rate * tau)
 
     def dvol_sticky_strike(self, *args: object, **kwargs: object) -> float:
-        """Identically zero: sticky-strike means the fitted sigma(K) curve
-        itself does not move as spot or forward move, by definition. Same
-        call shape as the other two so a caller can select a regime
-        generically without branching on it.
+        """Identically zero, by definition of the regime. Same call shape as
+        the other two so a caller can select generically without branching.
         """
         return 0.0

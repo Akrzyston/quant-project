@@ -1,12 +1,8 @@
-"""Structured shock ladder.
-
-Three named, reproducible transformations of the fitted SVI slice's own
-parameter space -- level bumps `a`, skew bumps `rho`, curvature bumps
-`sigma` -- each moving the smile's shape differently, not one flat parallel
-shift. Not a true historical PCA (Deribit's API has no bulk historical-chain
-endpoint to decompose), so this is model-implied on the current surface
-instead, with the level shock's magnitude sized from the one real historical
-signal available: realized vol-of-vol of DVOL closes.
+"""Structured shock ladder: level (`a`), skew (`rho`) and curvature
+(`sigma`) bumps to the fitted SVI slice, not a parallel vol shift. Not a
+true historical PCA (no bulk historical-chain endpoint exists), so this is
+model-implied, with only the level shock's magnitude sized from DVOL's
+realized vol-of-vol.
 """
 
 from __future__ import annotations
@@ -131,13 +127,9 @@ def level_shock_magnitudes_from_dvol(
     *,
     sigma_multiples: tuple[float, ...] = (-2.0, -1.0, 1.0, 2.0),
 ) -> tuple[float, ...]:
-    """Size the LEVEL shock from realized vol-of-vol of DVOL closes: the
-    stdev of log-returns over the fetched window is a fractional per-period
-    vol change, and w~vol^2 means a fractional change `x` in vol is
-    approximately a fractional change `2x` in total variance -- so the
-    additive bump to `a` (roughly the ATM total variance level) is
-    base_level * 2 * stdev * multiple. Best-effort: () with fewer than two
-    usable closes, matching app.data.dvol_for's own None-safe convention.
+    """Sizes the level shock from realized vol-of-vol of DVOL closes: since
+    w~vol^2, a fractional vol change `x` is roughly `2x` in total variance,
+    so the bump to `a` is `base_level * 2 * stdev * multiple`.
     """
     if dvol_series is None or len(dvol_series.points) < 2:
         return ()

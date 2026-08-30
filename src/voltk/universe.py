@@ -1,11 +1,6 @@
-"""Tradeable universe.
-
-A universe is a set of currencies, not one. Capturing several in a single window
-is what makes cross-currency work possible later: a BTC/ETH relative value trade
-needs both chains observed at the same instant, and that cannot be reconstructed
-by stitching two separate captures together.
-
-Currencies are always passed in, discovered from the venue at runtime.
+"""Tradeable universe: a set of currencies, not one, captured in a single
+window so a cross-currency trade can compare chains observed at the same
+instant. Currencies are always passed in, discovered from the venue.
 """
 
 from __future__ import annotations

@@ -1,11 +1,6 @@
-"""Minimal, session-local portfolio aggregation.
-
-Real position tracking (persisted, with P&L) is M8's job; this is just a
-list of signed-size positions in session state, summed for a risk view.
-Cash aggregation is always valid (cash Greeks are additive regardless of
-settlement currency); native-unit aggregation only makes sense within one
-settlement currency and convention, so mixing those natively is refused
-rather than silently summed.
+"""Minimal, session-local portfolio aggregation -- real position tracking is
+M8's job. Cash Greeks are always additive; native-unit aggregation refuses
+mixed settlement currencies or conventions rather than summing them.
 """
 
 from __future__ import annotations

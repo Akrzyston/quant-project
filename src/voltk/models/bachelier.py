@@ -66,9 +66,8 @@ class Bachelier:
 
         root_tau = math.sqrt(tau)
         sigma_root_tau = vol * root_tau
-        # Unsigned: vanna needs this, not the call/put-signed `d` below, to stay
-        # cp-independent the same way vega already is (pdf is an even function,
-        # but a first derivative in d is not, so the sign must be divided back out).
+        # Unsigned: vanna needs this, not the call/put-signed `d` below, to
+        # stay cp-independent the same way vega already is.
         d_unsigned = (forward - strike) / sigma_root_tau
         d = s * d_unsigned
         pdf_d = norm_pdf(d)

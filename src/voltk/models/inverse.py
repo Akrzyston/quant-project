@@ -1,11 +1,7 @@
-"""Inverse (coin-settled) options.
-
-A coin-settled call pays max(S-K,0)/S coins -- bounded, concave, unlike the
-unbounded quote-settled payoff. Priced two ways, which must agree: as a
-replication of K puts on 1/S under the coin numeraire, and directly as the
-ordinary Black-76 premium over spot, rate-independent because the discount
-factor cancels against the forward. Full derivation in
-docs/inverse_replication.md.
+"""Inverse (coin-settled) options: pays max(S-K,0)/S coins, bounded and
+concave. Priced two ways that must agree -- replication of K puts on 1/S
+under the coin numeraire, and the ordinary Black-76 premium over spot.
+Full derivation in docs/inverse_replication.md.
 """
 
 from __future__ import annotations

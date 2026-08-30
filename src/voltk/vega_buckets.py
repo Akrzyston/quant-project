@@ -1,11 +1,7 @@
-"""Vega bucketed by surface control point.
-
-SVI has no literal spline knots, so "control point" means one of the market
-smile points the slice was calibrated against, bucketed by rank in
-log-moneyness. Bump only that bucket, refit, reprice, read off the
-sensitivity. Bucketed vegas sum only approximately to parallel vega -- exact
-for a uniform bump (absorbed entirely by `a`), approximate for a subset,
-where the residual is the refit's real nonlinearity in the other parameters.
+"""Vega bucketed by surface control point: one of the market smile points
+the slice was calibrated against, ranked by log-moneyness. Bump only that
+bucket, refit, reprice. Bucketed vegas sum to parallel vega only
+approximately -- exact for a uniform bump, since w is linear in `a`.
 """
 
 from __future__ import annotations

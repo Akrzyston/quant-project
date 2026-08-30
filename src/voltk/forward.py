@@ -1,10 +1,7 @@
-"""Implied forward from put-call parity.
-
-Deribit's own chain display converts USD bid/ask off the index price, not the
-forward. Reading that off the screen gives a chain that is quietly skewed at
-every expiry by a nonzero basis. This module inverts the parity relation per
-expiry, off marked quotes, for an independent estimate of the forward that can
-be checked against the traded future directly.
+"""Implied forward from put-call parity. Deribit's own chain display prices
+off the index, not the forward, quietly skewing the chain -- inverting
+parity per expiry gives an independent estimate to check against the
+traded future.
 """
 
 from __future__ import annotations
