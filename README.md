@@ -491,6 +491,31 @@ calendar time throughout — this milestone is the one that explicitly calls
 out *why* that's correct rather than an oversight: crypto has no weekend, no
 exchange holiday, nothing for a trading-time correction to correct for.
 
+## M7 — live quoting simulator
+
+Mock quotes only, nothing ever submitted. `voltk/quoting.py` derives a
+two-sided width from three named terms — fit residual against the surface,
+gamma rehedge cost over a stated requoting interval, and a fraction of the
+live market's own spread — rather than a hand-set number, and reports each
+term so the panel can show why the quote is as wide as it is. Inventory
+shades the quote via the standard Avellaneda-Stoikov reservation price, not
+a bespoke formula.
+
+`voltk/market_making.py` simulates a session against a real intraday
+perpetual path: a fill happens whenever the next step's theo would have
+moved through our quote, and each fill's markout is reattributed through
+M5's own `attribute_pnl` — edge captured, adverse selection (the directional
+move against the resulting position), vega P&L, and a residual that's
+reported, never absorbed. The fill rule is deliberately a worst case
+(maximally-informed counterparty), documented as such in
+`docs/market_making.md` rather than presented as an average session.
+
+The Mock Orderbook panel only renders against a coin-settled model — the
+live market it compares against is itself coin-denominated, and pricing a
+Deribit option through a quote-settled reference would need a conversion
+this milestone didn't need to build. Selecting a quote-settled model shows
+a caption explaining why instead of a wrong number.
+
 ## Known gaps
 
 - Deribit options are European with no dividends, so the binomial model has no
@@ -557,3 +582,14 @@ exchange holiday, nothing for a trading-time correction to correct for.
 - `historical_vol_for` and `candles_for` are live-only, the same established
   choice as `dvol_for` — history has no meaning to replay against a single
   snapshot, so the Vol History panel is unavailable in snapshot-replay mode.
+- M7 targets the brief's Extended tier plus the P&L attribution/adverse-
+  selection measurement its own accept criteria require, not the rest of
+  Advanced: no comparison across different width policies, no fill-rate
+  tradeoff analysis, no vol path in the simulated session (vega P&L reports
+  correctly but is zero until one is wired in).
+- The simulated session's fill rule is a documented worst case, not
+  calibrated against any real fill-probability data — Deribit's public API
+  has no historical order-book depth to calibrate one from.
+- Quote width coefficients are exposed as UI sliders for inspection, the
+  same way M4's shock magnitudes are — not fit to historical P&L, since
+  nothing in this project tracks realized quoting P&L over time yet.
