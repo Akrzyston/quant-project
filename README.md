@@ -516,6 +516,37 @@ Deribit option through a quote-settled reference would need a conversion
 this milestone didn't need to build. Selecting a quote-settled model shows
 a caption explaining why instead of a wrong number.
 
+## M8 — strategy proposal, position, and P&L
+
+Full memo in `docs/strategy_proposal.md`, which names the losing scenario
+before anything else per the milestone's own accept criteria. One tradeable
+relationship: a delta-hedged short straddle sized off M6's own measured VRP,
+using `voltk/strategy.py`. Hedging and expected-edge sizing both reuse
+constructions this project already built rather than inventing new ones —
+`hedge_delta`/`with_hedge` zero out the combined position's delta the same
+way M7's reservation price already treats inventory, and
+`expected_daily_edge`'s representative move is the identical sizing
+`voltk.quoting.derive_width` uses for gamma risk, applied to expected P&L
+instead of a spread.
+
+Capacity is a stated participation rate of real open interest (`open_interest`
+newly parsed onto `Quote`, alongside the bid/ask/mark M2 already extracted).
+Kill conditions are three independent, always-evaluated checks, not a single
+short-circuited one, so a caller sees every breach at once.
+
+The Position panel also computes a backtested Sharpe from the trailing daily
+VRP and reports it with three explicit caveats (no historical chain to
+reprice against, autocorrelation inflating the `sqrt(365)` annualization, and
+survivorship of a window that happened not to contain a vol spike) — directly
+answering the milestone's own "any Sharpe claim" requirement rather than
+avoiding the topic by not computing one.
+
+Entry and live P&L are session-scoped (`state.scratch`, the same mechanism
+every other panel's ad hoc UI state already uses), not persisted — matching
+`voltk/portfolio.py`'s standing note that real position tracking wasn't in
+scope until this milestone, and even here stays a session-local preview, not
+a database.
+
 ## Known gaps
 
 - Deribit options are European with no dividends, so the binomial model has no
@@ -593,3 +624,15 @@ a caption explaining why instead of a wrong number.
 - Quote width coefficients are exposed as UI sliders for inspection, the
   same way M4's shock magnitudes are — not fit to historical P&L, since
   nothing in this project tracks realized quoting P&L over time yet.
+- M8 targets one tradeable relationship (vol carry) rather than all three the
+  brief names as options (rich wings, calendar structure, vol carry) —
+  chosen because it reuses the most already-built machinery. The two
+  explicitly optional extras (a hedged structured/barrier product, a BTC vs
+  ETH cross-currency portfolio) weren't attempted; either would need real
+  new pricing-model or cross-asset work, not an extension of what M8 built.
+- The backtested Sharpe is a vol-premium proxy over M6's own trailing DVOL
+  history (about two weeks), not a simulated dollar P&L — there's no
+  historical option chain to reprice a real position against day by day.
+- Position entry/P&L is session-scoped only: it resets on a page reload and
+  was never meant to survive one, matching the scope note already in
+  `voltk/portfolio.py`.
