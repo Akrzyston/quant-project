@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS snapshots (
     schema_version  INTEGER NOT NULL,
     -- The voltk release that wrote this row. Checked on load and a mismatch
     -- raises rather than silently replaying under code that may parse the
-    -- same bytes differently -- the brief's own hard constraint.
+    -- same bytes differently.
     library_version TEXT NOT NULL,
     -- Human-readable venue/source label (e.g. "Deribit live"), shown in the
     -- snapshot browser and provenance panel so a reload's origin is visible.

@@ -468,8 +468,8 @@ observation within a stated gap tolerance (the two are independently sampled
 on different grids) and reports the mean premium, the fraction of the window
 it ran positive, and the exact inversion timestamps.
 
-`voltk/sticky_regime.py` answers the question the brief's own M4 notes leave
-open: does the market behave like sticky-strike or sticky-delta? One day of
+`voltk/sticky_regime.py` answers the question M4's own notes leave open:
+does the market behave like sticky-strike or sticky-delta? One day of
 intraday call/put candles across a strike ladder plus the perpetual are
 aligned by exact timestamp, each pair inverted to implied vol using the
 forward *at that timestamp* (put-call parity, `voltk/forward.py`'s

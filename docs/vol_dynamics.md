@@ -64,8 +64,8 @@ trading decision would need to know exactly when.
 by definition of the regime -- the smile is pinned to absolute strikes) and
 `dvol_dspot_sticky_delta` (nonzero -- the fitted curve is held fixed in
 relative log-moneyness, so the smile "follows the underlying"). Which one
-actually describes the market is an empirical question the brief's own M4
-notes leave open for M6 to answer.
+actually describes the market is an empirical question M4 leaves open for
+M6 to answer.
 
 ### Inverting a historical option candle needs the forward at that timestamp
 
@@ -103,8 +103,8 @@ regression.
 raw levels. A level regression would pick up whatever shared trend both
 series have over the session -- vol and spot can easily share a trend for
 reasons that have nothing to do with the sticky-strike question -- rather
-than the local sensitivity `d(vol)/d(spot)` that the brief's
-`Delta_eff = Delta_BS + Vega * d(sigma)/dS` formula actually needs.
+than the local sensitivity `d(vol)/d(spot)` that
+`Delta_eff = Delta_BS + Vega * d(sigma)/dS` actually needs.
 
 The empirical slope, `sticky_strike_prediction` (always 0.0) and
 `sticky_delta_prediction` (`Surface.dvol_dspot_sticky_delta` at that

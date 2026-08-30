@@ -89,8 +89,8 @@ convergence — confirmed down to a 0.01x-scale move). At a realistic combined
 move (2.5% spot, 5% vol, 10 days), the residual settles at about 1% of the
 actual P&L — the expected size of the omitted vanna/volga terms, not a sign
 of a bug. A residual much larger than that on real data would be exactly the
-kind of thing worth investigating, per the brief's own framing: a large
-unexplained term is evidence the model is wrong, not noise.
+kind of thing worth investigating: a large unexplained term is evidence
+the model is wrong, not noise.
 
 ## What is checked
 
