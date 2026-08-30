@@ -4,8 +4,9 @@ A reusable pricing/risk library with a Streamlit view on the outside. The
 dashboard accumulates one panel per milestone.
 
 ```
-uv run pytest -q                        # 585 cases
+uv run pytest -q                        # 898 cases
 uv run streamlit run streamlit_app.py
+make all                                # regenerate every report figure
 ```
 
 ## The boundary
@@ -14,7 +15,22 @@ uv run streamlit run streamlit_app.py
 Streamlit, Plotly, or `app`. Two tests enforce this: a static AST scan of every
 module, and a runtime import with the view packages poisoned in `sys.meta_path`.
 
-`app/` renders. No pricing, fitting, or risk logic.
+`app/` renders. No pricing, fitting, or risk logic. `scripts/figures/` does the
+same for the static report figures, one file per figure, none of them pricing
+or fitting anything themselves either.
+
+## Report figures
+
+`make all` runs every script in `scripts/figures/` and writes PNGs to
+`reports/figures/` (gitignored — regenerated, not committed). Every figure
+loads off a stored snapshot (`scripts/figures/common.py`), capturing one
+first if `data/snapshots.db` doesn't have one yet, so the same run works on
+a fresh checkout and reproduces identically on repeated runs against the
+same snapshot. Two figures — implied vs realized vol, and the simulated
+market-making session — are necessarily live: DVOL, realized-vol history,
+and intraday candles have no snapshot/replay concept anywhere else in this
+project either, so those two scripts pull live data the same way the
+dashboard panels that need the same history already do.
 
 ## M0 — instrument dossier and snapshot pipeline
 
