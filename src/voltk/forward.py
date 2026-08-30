@@ -31,6 +31,29 @@ class ImpliedForward:
     per_strike: tuple[tuple[float, float], ...]
 
 
+def forward_from_parity(
+    strike: float, call_price: float, put_price: float, *, settles_in_base: bool, discount: float = 1.0
+) -> float | None:
+    """One strike's implied forward from put-call parity. None if the parity
+    relation degenerates at this strike (a bad quote), not raised, so a
+    caller can skip one strike out of a ladder without losing the rest.
+
+    Coin-settled: C - P = 1 - K/F  =>  F_K = K / (1 - (C-P))
+    Quote-settled: C - P = D(F-K)  =>  F_K = K + (C-P)/D, D = exp(-rate*tau)
+    """
+    diff = call_price - put_price
+    if settles_in_base:
+        denom = 1.0 - diff
+        if denom <= 0:
+            return None
+        forward = strike / denom
+    else:
+        if discount <= 0:
+            return None
+        forward = strike + diff / discount
+    return forward if forward > 0 else None
+
+
 def implied_forward_curve(
     universe: Universe,
     marks: Mapping[str, float],
@@ -61,19 +84,9 @@ def implied_forward_curve(
             c, p = marks.get(call.name), marks.get(put.name)
             if c is None or p is None:
                 continue
-            diff = c - p
-            if settles_in_base:
-                denom = 1.0 - diff
-                if denom <= 0:
-                    continue
-                forward = strike / denom
-            else:
-                if discount <= 0:
-                    continue
-                forward = strike + diff / discount
-            if forward <= 0:
-                continue
-            per_strike.append((strike, forward))
+            forward = forward_from_parity(strike, c, p, settles_in_base=settles_in_base, discount=discount)
+            if forward is not None:
+                per_strike.append((strike, forward))
 
         if not per_strike:
             continue

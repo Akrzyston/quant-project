@@ -14,7 +14,7 @@ import pytest
 from tests.conftest import BASE, FakeVenue
 from tests.test_validation import consistent_marks, universe  # noqa: F401
 from voltk.capture import capture
-from voltk.forward import implied_forward_curve
+from voltk.forward import forward_from_parity, implied_forward_curve
 from voltk.instruments import OptionType
 from voltk.models.base import CP
 from voltk.models.black76 import Black76
@@ -51,6 +51,28 @@ def index_priced_marks(universe, vol: float = VOL) -> dict[str, float]:
         cp = CP.CALL if inst.option_type is OptionType.CALL else CP.PUT
         marks[inst.name] = model.price(index, inst.strike, tau, vol, 0.0, cp)
     return marks
+
+
+def test_forward_from_parity_matches_the_forward_used_to_construct_prices() -> None:
+    forward, strike, tau, vol = 65000.0, 68000.0, 0.25, 0.6
+    model = Black76()
+    call = model.price(forward, strike, tau, vol, 0.0, CP.CALL) / forward
+    put = model.price(forward, strike, tau, vol, 0.0, CP.PUT) / forward
+
+    recovered = forward_from_parity(strike, call, put, settles_in_base=True)
+
+    assert recovered == pytest.approx(forward, rel=1e-6)
+
+
+def test_forward_from_parity_returns_none_on_a_degenerate_strike() -> None:
+    assert forward_from_parity(70000.0, 1.5, 0.0, settles_in_base=True) is None
+
+
+def test_forward_from_parity_quote_settled_uses_the_discount_factor() -> None:
+    forward, strike, discount = 65000.0, 68000.0, 0.98
+    diff = (forward - strike) * discount
+    recovered = forward_from_parity(strike, diff, 0.0, settles_in_base=False, discount=discount)
+    assert recovered == pytest.approx(forward, rel=1e-9)
 
 
 def test_consistent_marks_recover_the_traded_future(universe) -> None:
