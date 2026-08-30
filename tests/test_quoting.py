@@ -26,6 +26,17 @@ def test_derive_width_sums_its_named_terms() -> None:
     assert width.fit_term == pytest.approx(100.0 * 0.02)
 
 
+def test_derive_width_a_crossed_market_never_reduces_the_width() -> None:
+    # A crossed live quote (ask < bid) gives a negative half-spread. Treating
+    # that as evidence of tight liquidity would shrink the width right when
+    # the data says something is actually wrong with the market.
+    width = derive_width(
+        vega=100.0, gamma=0.0, fit_residual_vol=0.02, underlying=UNDERLYING, vol=VOL,
+        market_half_spread=-5.0,
+    )
+    assert width.liquidity_term == 0.0
+
+
 def test_derive_width_respects_the_floor() -> None:
     width = derive_width(
         vega=0.0, gamma=0.0, fit_residual_vol=0.0, underlying=UNDERLYING, vol=VOL,

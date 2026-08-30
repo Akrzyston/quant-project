@@ -54,7 +54,7 @@ def derive_width(
     hedge_move = underlying * vol * math.sqrt(REHEDGE_INTERVAL_YEARS)
     fit_term = fit_coef * abs(vega) * abs(fit_residual_vol)
     gamma_term = gamma_coef * abs(gamma) * hedge_move * hedge_move / 2.0
-    liquidity_term = liquidity_coef * market_half_spread if market_half_spread else 0.0
+    liquidity_term = liquidity_coef * max(market_half_spread, 0.0) if market_half_spread is not None else 0.0
     half_width = max(floor, fit_term + gamma_term + liquidity_term)
     return QuoteWidth(half_width, fit_term, gamma_term, liquidity_term, floor)
 
