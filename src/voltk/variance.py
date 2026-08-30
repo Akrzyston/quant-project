@@ -59,7 +59,13 @@ class VarianceSlice:
 
 
 def _otm_ladder(
-    universe: Universe, currency: str, expiry: datetime, forward: float, marks: Mapping[str, float]
+    universe: Universe,
+    currency: str,
+    expiry: datetime,
+    forward: float,
+    marks: Mapping[str, float],
+    *,
+    settles_in_base: bool,
 ) -> tuple[float, bool, list[tuple[float, float]]]:
     calls: dict[float, Instrument] = {}
     puts: dict[float, Instrument] = {}
@@ -92,6 +98,8 @@ def _otm_ladder(
             prices = [p for p in (call_price, put_price) if p is not None]
             price = sum(prices) / len(prices) if prices else None
         if price is not None:
+            if settles_in_base:
+                price = price * forward
             ladder.append((k, price))
 
     return k0, k0_extrapolated, ladder
@@ -101,6 +109,8 @@ def model_free_variance(
     universe: Universe,
     marks: Mapping[str, float],
     implied_forward: ImpliedForward,
+    *,
+    settles_in_base: bool = True,
 ) -> VarianceSlice | None:
     """CBOE-style discretized model-free variance for one expiry.
 
@@ -111,9 +121,25 @@ def model_free_variance(
     usable strikes, one-sided at the two ends. Returns None, not raise, below
     MIN_STRIKES_FOR_VARIANCE usable strikes -- mirrors implied_forward_curve's
     per-expiry skip-not-crash rule.
+
+    Q(K) must be quote-currency: Deribit quotes options in the settlement
+    (coin) currency, not the quote currency (confirmed against Deribit's own
+    docs). For a coin-settled chain (settles_in_base=True, the default,
+    matching every other coin/cash boundary in this project), the mark is
+    converted in _otm_ladder via `price_coin * forward`. That conversion
+    already equals Black76's own rate=0 price -- which is exactly
+    Black76(rate=R)*e^{R*tau} for any R, an identity of the model, not an
+    approximation -- so it has already done the e^{rT} undiscounting this
+    formula would otherwise apply; applying e^{rT} again on top would double
+    -count it. Verified numerically: at a genuinely nonzero rate, applying it
+    again moves a known-flat-vol recovery test from ~0.85% off to ~2.1% off.
+    So `discount` is 1.0 whenever settles_in_base, and only the classical
+    e^{rT} applies to already-quote-currency marks.
     """
     currency, expiry, forward = implied_forward.currency, implied_forward.expiry, implied_forward.forward
-    k0, k0_extrapolated, ladder = _otm_ladder(universe, currency, expiry, forward, marks)
+    k0, k0_extrapolated, ladder = _otm_ladder(
+        universe, currency, expiry, forward, marks, settles_in_base=settles_in_base
+    )
     if len(ladder) < MIN_STRIKES_FOR_VARIANCE:
         return None
 
@@ -121,7 +147,7 @@ def model_free_variance(
     if tau <= 0:
         return None
     rate = universe.implied_rate(currency, expiry)
-    discount = math.exp(rate * tau)
+    discount = 1.0 if settles_in_base else math.exp(rate * tau)
 
     strikes = [k for k, _ in ladder]
     n = len(strikes)
@@ -158,9 +184,13 @@ def variance_term_structure(
     universe: Universe,
     marks: Mapping[str, float],
     forwards: Sequence[ImpliedForward],
+    *,
+    settles_in_base: bool = True,
 ) -> tuple[VarianceSlice, ...]:
     """model_free_variance per ImpliedForward, silently skipping thin expiries."""
-    slices = (model_free_variance(universe, marks, f) for f in forwards)
+    slices = (
+        model_free_variance(universe, marks, f, settles_in_base=settles_in_base) for f in forwards
+    )
     return tuple(s for s in slices if s is not None)
 
 

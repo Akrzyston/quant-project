@@ -235,6 +235,12 @@ reports this model-free index against both Deribit's published DVOL and the
 fitted surface's own ATM level side by side: a surface can be right
 pointwise and wrong in aggregate, and this is what catches that.
 
+`smile_points` and `model_free_variance` both convert a coin-denominated mark
+to quote-currency terms before using it — corrected in M5 from a real bug
+where a raw coin-scale mark was fed unconverted into the quote-currency
+Black76 reference/CBOE sum; see the M5 section below for the fix and why it
+went undetected until then.
+
 **Numerics**: `numpy`/`scipy` are new dependencies as of this milestone, the
 first ones added to `src/voltk/`. Every earlier module (`solver.py`'s
 Newton/bisection, `forward.py`'s median-of-strikes) is hand-rolled on `math`;

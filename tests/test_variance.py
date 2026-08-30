@@ -36,6 +36,27 @@ def test_model_free_variance_recovers_flat_vol_within_tolerance() -> None:
     assert result.variance == pytest.approx(known_variance, rel=0.02)
 
 
+def test_model_free_variance_recovers_flat_vol_at_a_nonzero_rate() -> None:
+    """Regression test for a real bug: converting a coin-denominated mark to
+    quote-currency via price*forward already equals Black76(rate=R)*e^{R*tau}
+    for any R (an identity of the model, not an approximation -- see
+    variance.py's module docstring), so it has already performed the CBOE
+    formula's own e^{rT} undiscounting. Applying e^{rT} again on top double-
+    counts it: verified numerically that doing so moves this same recovery
+    from ~0.85% off to ~2.1% off at a rate of 0.15. A permanently-zero rate
+    (every other test in this file) can never distinguish the two.
+    """
+    universe, marks, implied_forward = build_synthetic_chain(
+        svi=FLAT_SVI, tau=TAU_30D, n_strikes=41, rate=0.15
+    )
+    known_variance = FLAT_SVI["a"] / TAU_30D
+
+    result = model_free_variance(universe, marks, implied_forward)
+
+    assert result is not None
+    assert result.variance == pytest.approx(known_variance, rel=0.02)
+
+
 def test_variance_uses_the_implied_forward_not_forward_for() -> None:
     universe, marks, implied_forward = build_synthetic_chain(
         svi=FLAT_SVI, tau=TAU_30D, n_strikes=41

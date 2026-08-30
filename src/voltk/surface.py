@@ -72,7 +72,11 @@ class SmilePoint:
 
 
 def smile_points(
-    universe: Universe, marks: dict[str, float], implied_forward: ImpliedForward
+    universe: Universe,
+    marks: dict[str, float],
+    implied_forward: ImpliedForward,
+    *,
+    settles_in_base: bool = True,
 ) -> tuple[SmilePoint, ...]:
     """One point per strike with a usable OTM mark: put below the forward, call
     above, call at the forward itself (fallback to put if no call is marked).
@@ -81,6 +85,22 @@ def smile_points(
     selected model -- accepting a model parameter here would be exactly the
     kind of opening that later lets the point-pricing selector leak into a fit
     whose CBOE-style methodology assumes a stable, forward-based reference.
+
+    Deribit quotes options in the settlement (coin) currency, not the quote
+    currency -- confirmed against Deribit's own docs, "Bitcoin options are
+    priced in Bitcoin." A coin-denominated mark fed straight into a quote-
+    currency Black76 solve is off by a factor of the forward, so for a
+    coin-settled chain (settles_in_base=True, matching every other coin/cash
+    boundary in this project) the mark is converted first: `price_coin *
+    forward` equals `Black76.price(forward, strike, tau, vol, rate=0, cp)`
+    exactly, for any rate -- this is InverseOption's own internal identity
+    ("the discount factor cancels against the forward", inverse.py), not a
+    new assumption. The Black76 solve therefore also uses rate=0 here, not
+    the universe's implied rate: verified numerically that using the real
+    rate instead reintroduces a real, non-negligible error (~3% of vol at a
+    realistic rate) that rate=0 does not have, matching InverseOption's own
+    rate-independence.
+
     Skips strikes the solver can't price (outside the model's no-arbitrage
     band) rather than raising; returns non-identified points too so callers
     can display them, but calibration filters to identified itself.
@@ -89,7 +109,7 @@ def smile_points(
     tau = (expiry - universe.as_of).total_seconds() / _SECONDS_PER_YEAR
     if tau <= 0:
         return ()
-    rate = universe.implied_rate(currency, expiry)
+    rate = 0.0 if settles_in_base else universe.implied_rate(currency, expiry)
 
     calls, puts = {}, {}
     for inst in universe.options(currency):
@@ -112,6 +132,8 @@ def smile_points(
         price = marks.get(inst.name)
         if price is None:
             continue
+        if settles_in_base:
+            price = price * forward
 
         try:
             result = implied_vol_detailed(_REFERENCE_MODEL, price, forward, strike, tau, rate, cp)

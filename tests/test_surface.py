@@ -174,3 +174,23 @@ def test_calibrate_surface_is_bit_for_bit_deterministic() -> None:
 
     assert slices_1 == slices_2
     assert failures_1 == failures_2
+
+
+def test_smile_points_recovers_true_vol_from_coin_denominated_marks() -> None:
+    """Deribit quotes options in the settlement (coin) currency, not the
+    quote currency (confirmed against Deribit's own docs). This is the
+    regression test for a real bug where a coin-scale mark fed unconverted
+    into the Black76 reference solver produced a market_vol off by orders of
+    magnitude -- tests/synthetic_chain.py now prices via InverseOption
+    (coin-settled), matching a real chain, specifically so this is caught.
+    """
+    flat_vol = 0.6
+    flat_svi = dict(a=flat_vol * flat_vol * TAU_30D, b=0.0, rho=0.0, m=0.0, sigma=0.2)
+    universe, marks, implied_forward = build_synthetic_chain(svi=flat_svi, tau=TAU_30D)
+
+    points = smile_points(universe, marks, implied_forward)
+    identified = [p for p in points if p.identified]
+
+    assert len(identified) >= 5
+    for p in identified:
+        assert p.market_vol == pytest.approx(flat_vol, rel=0.02)
