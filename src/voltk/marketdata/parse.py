@@ -79,17 +79,11 @@ class DvolSeries:
 
 def dvol_series(response: RawResponse, *, currency: str) -> DvolSeries:
     """DVOL candles: [timestamp_ms, open, high, low, close]. Values on the
-    wire are a PERCENTAGE NUMBER (37.95 means 37.95% annualized vol), not a
-    decimal fraction -- confirmed directly against the live endpoint for two
-    currencies (a value below 1.0 or above roughly 300 would be an absurd
-    annualized vol either way, so the scale is unambiguous), correcting an
-    earlier, wrong assumption that was never checked against a real response.
-    Divided by 100 here, in the one place it needs to happen, so this stays
-    on the same decimal-fraction scale every other vol figure in this
-    library uses -- historical_volatility_series's neighbouring endpoint
-    included. Direct key access on the envelope (unlike book_summary's
-    per-row .get() leniency) -- a changed top-level shape should fail
-    loudly, not silently return nothing.
+    wire are a percentage number (37.95 means 37.95%), divided by 100 here
+    so every vol figure in this library stays decimal-fraction scale.
+    Direct key access on the envelope, unlike book_summary's per-row
+    leniency: a changed top-level shape should fail loudly, not silently
+    return nothing.
     """
     rows = response.result().get("data", [])
     points = [
@@ -120,12 +114,10 @@ class RealizedVolSeries:
 
 
 def historical_volatility_series(response: RawResponse, *, currency: str) -> RealizedVolSeries:
-    """get_historical_volatility rows are [timestamp_ms, value]. value is a
-    PERCENTAGE NUMBER (22.3 means 22.3% annualized) -- confirmed against the
-    live endpoint directly, since Deribit's own docs don't state it. Divided
-    by 100 here, the same convention dvol_series applies to its own
-    percentage-scale wire values, so every vol number in this library stays
-    on the same decimal-fraction scale.
+    """get_historical_volatility rows are [timestamp_ms, value], value a
+    percentage number (22.3 means 22.3%) -- same convention as dvol_series's
+    own wire values, divided by 100 here so every vol number in this library
+    stays decimal-fraction scale.
     """
     rows = response.result()
     points = [

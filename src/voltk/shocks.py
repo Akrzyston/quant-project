@@ -1,23 +1,12 @@
 """Structured shock ladder.
 
-Three named, reproducible transformations of the CURRENT fitted SVI slice's
-own parameter space -- level bumps `a`, skew bumps `rho`, curvature bumps
-`sigma` -- each with a distinctly different effect on the smile's shape.
-This is genuinely not a parallel vol shift: a level shock raises the whole
-curve, a skew shock tilts it, a curvature shock rounds or sharpens the
-vertex, and the resulting vol change across strikes is different in each
-case, not one flat additive number.
-
-Honest scope: this is NOT a true empirical level/skew/curvature PCA
-decomposed from historical surfaces. Deribit's public API has no bulk
-historical-chain endpoint (get_book_summary_by_currency/get_instruments are
-current-state only), Deribit's DVOL history is a single scalar time series
-with no per-strike information, and the local snapshot store has no
-automated harvesting of fitted SVI history yet. What's built here is a
-defensible, honestly-labeled alternative: model-implied structured shocks on
-the current surface, with the LEVEL shock's magnitude (not its shape) sized
-from the one piece of real historical data available -- realized vol-of-vol
-of Deribit's own published DVOL closes.
+Three named, reproducible transformations of the fitted SVI slice's own
+parameter space -- level bumps `a`, skew bumps `rho`, curvature bumps
+`sigma` -- each moving the smile's shape differently, not one flat parallel
+shift. Not a true historical PCA (Deribit's API has no bulk historical-chain
+endpoint to decompose), so this is model-implied on the current surface
+instead, with the level shock's magnitude sized from the one real historical
+signal available: realized vol-of-vol of DVOL closes.
 """
 
 from __future__ import annotations

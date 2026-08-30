@@ -1,18 +1,15 @@
 """Volatility surface: raw SVI per expiry, stitched across strike and time.
 
-Fit in total variance against log-moneyness, not raw implied vol against
-strike. Total variance w = sigma^2 * tau is the quantity that is additive
-under the calendar interpolation this module does (linear in T), and the
-calendar no-arbitrage condition is exactly its monotonicity in T -- neither
-statement holds for raw vol against strike, and strikes are not even
-comparable across expiries the way log-moneyness is.
+Fit in total variance w = sigma^2 * tau against log-moneyness k = ln(K/F),
+not raw vol against strike: w is additive under linear-in-T interpolation,
+and calendar no-arbitrage is exactly its monotonicity in T -- neither holds
+for vol against strike, and strikes aren't comparable across expiries the
+way moneyness is.
 
-The structural prior is raw SVI (Gatheral): w(k) = a + b{rho(k-m) + sqrt((k-m)^2+sigma^2)}.
-Chosen for three reasons. It is linear in (a, b*rho, b) for a fixed (m, sigma),
-so most of the fit is well-conditioned. Its wings grow linearly in total
-variance by construction, so vol grows like sqrt(|k|) rather than exploding --
-this is what keeps deep-wing extrapolation from producing absurd vols without
-any ad hoc capping. And Gatheral's own g(k) function gives an exact, checkable
+Structural prior is raw SVI (Gatheral): w(k) = a + b{rho(k-m) + sqrt((k-m)^2+sigma^2)}.
+Linear in (a, b*rho, b) for fixed (m, sigma), so most of the fit is
+well-conditioned; wings grow linearly in total variance, so vol grows like
+sqrt(|k|) instead of exploding; and Gatheral's own g(k) gives an exact
 butterfly-arbitrage test rather than a numerical proxy.
 """
 
@@ -78,32 +75,16 @@ def smile_points(
     *,
     settles_in_base: bool = True,
 ) -> tuple[SmilePoint, ...]:
-    """One point per strike with a usable OTM mark: put below the forward, call
-    above, call at the forward itself (fallback to put if no call is marked).
-
-    Implied vol always comes from a fixed Black76() reference, never the UI's
-    selected model -- accepting a model parameter here would be exactly the
-    kind of opening that later lets the point-pricing selector leak into a fit
-    whose CBOE-style methodology assumes a stable, forward-based reference.
-
-    Deribit quotes options in the settlement (coin) currency, not the quote
-    currency -- confirmed against Deribit's own docs, "Bitcoin options are
-    priced in Bitcoin." A coin-denominated mark fed straight into a quote-
-    currency Black76 solve is off by a factor of the forward, so for a
-    coin-settled chain (settles_in_base=True, matching every other coin/cash
-    boundary in this project) the mark is converted first: `price_coin *
-    forward` equals `Black76.price(forward, strike, tau, vol, rate=0, cp)`
-    exactly, for any rate -- this is InverseOption's own internal identity
-    ("the discount factor cancels against the forward", inverse.py), not a
-    new assumption. The Black76 solve therefore also uses rate=0 here, not
-    the universe's implied rate: verified numerically that using the real
-    rate instead reintroduces a real, non-negligible error (~3% of vol at a
-    realistic rate) that rate=0 does not have, matching InverseOption's own
-    rate-independence.
-
-    Skips strikes the solver can't price (outside the model's no-arbitrage
-    band) rather than raising; returns non-identified points too so callers
-    can display them, but calibration filters to identified itself.
+    """One point per strike with a usable OTM mark: put below the forward,
+    call above, call at the forward itself. Always solved against a fixed
+    Black76() reference, never the UI's selected model, so the fit doesn't
+    drift with the point-pricing selector. Deribit quotes options in coin
+    terms, so a coin-settled chain converts each mark to quote-currency
+    first (`price_coin * forward`, InverseOption's own rate-cancelling
+    identity) and solves at rate=0, not the universe's implied rate -- using
+    the real rate reintroduces a few percent of vol error. Skips strikes the
+    solver can't price rather than raising; unidentified points are kept for
+    display but filtered out before calibration.
     """
     currency, expiry, forward = implied_forward.currency, implied_forward.expiry, implied_forward.forward
     tau = (expiry - universe.as_of).total_seconds() / _SECONDS_PER_YEAR
@@ -381,19 +362,12 @@ def calendar_reports(slices: Sequence[SVISlice]) -> tuple[CalendarReport, ...]:
 
 @dataclass(frozen=True, slots=True)
 class Surface:
-    """A continuous strike/time surface stitched from independently-fit slices.
-
-    Interpolates total variance linearly in T between the two bracketing
-    slices at fixed k -- equivalent to the CBOE constant-maturity formula, and
-    automatically consistent with calendar no-arbitrage whenever the two
-    endpoints already are, since a linear interpolant cannot dip below the
-    lower of two values it connects.
-
-    Extrapolates outside the fitted maturity range by holding the
-    instantaneous variance rate w(k,T)/T constant at the nearest slice, the
-    same "flat rate" idea in the time direction that SVI's own linear-in-k
-    wings already apply in the strike direction -- one documented rule,
-    avoiding the wing/tail blowup failure mode both ways.
+    """A continuous strike/time surface stitched from independently-fit
+    slices. Interpolates total variance linearly in T between bracketing
+    slices at fixed k (the CBOE constant-maturity formula, and automatically
+    calendar-consistent whenever the endpoints already are). Extrapolates
+    past the fitted range by holding w(k,T)/T constant at the nearest slice
+    -- the same flat-rate idea SVI's own wings apply in the strike direction.
     """
 
     slices: tuple[SVISlice, ...]

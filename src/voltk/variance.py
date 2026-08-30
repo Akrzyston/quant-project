@@ -1,16 +1,11 @@
 """Model-free variance index.
 
-CBOE-style variance-swap replication: sum out-of-the-money option prices
-across the strike ladder, weighted by 1/K^2 and the local strike spacing.
-No model is fit; the number falls straight out of observed prices, which is
-what makes it checkable against Deribit's own published DVOL index rather
-than against anything this library computed.
-
-Uses the forward derived from put-call parity (voltk.forward.ImpliedForward),
-not Universe.forward_for. That parity-derived forward is exactly what CBOE's
-own methodology uses (the smallest |C-P| strike), and it is the reason M2
-exists: reading the forward off the index, the way Deribit's own chain
-display does, produces a variance number that is quietly wrong.
+CBOE-style variance-swap replication: sum OTM option prices across the
+strike ladder, weighted by 1/K^2 and local strike spacing. No model is fit,
+which is what makes it checkable against Deribit's own DVOL. Uses the
+parity-derived forward (voltk.forward.ImpliedForward), not
+Universe.forward_for -- reading the forward off the index instead produces
+a quietly wrong number, the same trap M2 exists to avoid.
 """
 
 from __future__ import annotations
@@ -116,25 +111,13 @@ def model_free_variance(
 
     sigma^2(T) = (2/T) * sum_i [dK_i/K_i^2] * e^(rT) * Q(K_i) - (1/T)*(F/K0 - 1)^2
 
-    Q(K) is the out-of-the-money price: put below K0, call above, the average
-    of both at K0 itself. dK_i is the central difference between neighbouring
-    usable strikes, one-sided at the two ends. Returns None, not raise, below
-    MIN_STRIKES_FOR_VARIANCE usable strikes -- mirrors implied_forward_curve's
-    per-expiry skip-not-crash rule.
-
-    Q(K) must be quote-currency: Deribit quotes options in the settlement
-    (coin) currency, not the quote currency (confirmed against Deribit's own
-    docs). For a coin-settled chain (settles_in_base=True, the default,
-    matching every other coin/cash boundary in this project), the mark is
-    converted in _otm_ladder via `price_coin * forward`. That conversion
-    already equals Black76's own rate=0 price -- which is exactly
-    Black76(rate=R)*e^{R*tau} for any R, an identity of the model, not an
-    approximation -- so it has already done the e^{rT} undiscounting this
-    formula would otherwise apply; applying e^{rT} again on top would double
-    -count it. Verified numerically: at a genuinely nonzero rate, applying it
-    again moves a known-flat-vol recovery test from ~0.85% off to ~2.1% off.
-    So `discount` is 1.0 whenever settles_in_base, and only the classical
-    e^{rT} applies to already-quote-currency marks.
+    Q(K) is the OTM price (put below K0, call above, averaged at K0); dK_i is
+    the central difference between usable strikes. Returns None below
+    MIN_STRIKES_FOR_VARIANCE rather than raising. For a coin-settled chain,
+    `_otm_ladder` already converts each mark to quote-currency via
+    `price_coin * forward`, which is exactly the rate=0 Black76 price -- so
+    it has already undone the e^{rT} this formula would otherwise apply;
+    `discount` stays 1.0 in that case to avoid double-counting it.
     """
     currency, expiry, forward = implied_forward.currency, implied_forward.expiry, implied_forward.forward
     k0, k0_extrapolated, ladder = _otm_ladder(

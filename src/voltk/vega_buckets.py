@@ -1,20 +1,11 @@
 """Vega bucketed by surface control point.
 
-SVI has no literal spline knots -- five global parameters, not a piecewise
-curve -- so "control point" here means one of the market smile points the
-expiry's slice was actually calibrated against. Bucket by rank in
-log-moneyness (never a hardcoded strike or delta cutoff), bump only that
-bucket's points, refit, reprice, read off the sensitivity: this is the same
-"perturb one point, refit, reprice" idea a literal spline knot would get,
-just applied to SVI's own calibration inputs instead.
-
-The reconciliation check (bucketed vegas should sum to the parallel vega) is
-grounded in an exact identity, not a loose first-order argument: w=a+b(...)
-is linear in `a`, so a uniform additive bump applied to EVERY point is
-exactly absorbed by a -> a+dw alone, with b/rho/m/sigma unchanged. Bumping a
-disjoint SUBSET of points is not a pure level shift, so the sum is only
-approximate -- the residual is the refit's genuine nonlinearity in the other
-four parameters, not numerical noise.
+SVI has no literal spline knots, so "control point" means one of the market
+smile points the slice was calibrated against, bucketed by rank in
+log-moneyness. Bump only that bucket, refit, reprice, read off the
+sensitivity. Bucketed vegas sum only approximately to parallel vega -- exact
+for a uniform bump (absorbed entirely by `a`), approximate for a subset,
+where the residual is the refit's real nonlinearity in the other parameters.
 """
 
 from __future__ import annotations

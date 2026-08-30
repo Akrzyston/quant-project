@@ -1,14 +1,10 @@
 """Cox-Ross-Rubinstein binomial tree with early exercise.
 
-Spot-parameterised. Discrete cash dividends use the escrowed model: the present
-value of dividends still to be paid is stripped off spot, the tree is built on
-the remainder, and the escrow is added back at each node so the exercise decision
-sees the real spot.
-
-Greeks come off the tree rather than from repricing where the tree supplies them.
-Delta and gamma read off nodes at steps one and two, theta off the centre node at
-step two. Vega, rho, vanna and volga have no tree analogue and are central
-differences over rebuilt trees.
+Spot-parameterised. Discrete cash dividends use the escrowed model: present
+value of dividends still to be paid is stripped off spot, the tree is built
+on the remainder, and the escrow is added back at each node. Delta and
+gamma read off the tree's own early nodes; vega, rho, vanna and volga have
+no tree analogue and are central differences over rebuilt trees.
 """
 
 from __future__ import annotations

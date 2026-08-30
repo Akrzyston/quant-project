@@ -1,17 +1,11 @@
 """Minimal, session-local portfolio aggregation.
 
-Real position tracking (persisted, with P&L) is M8's job per the milestone
-table. This is deliberately smaller: a list of signed-size positions held
-only in the dashboard's own session state, summed for a risk view.
-
-Cash aggregation is always valid: cash value is additive across positions
-once each position's own cash Greek has been correctly derived (see
-voltk.greeks.cash_greeks_from_coin), regardless of what each position
-settles in. Native-unit aggregation is only meaningful within one settlement
-currency and one settlement convention -- summing coin Greeks across
-different currencies, or mixing coin- and quote-settled positions natively,
-is exactly the "reporting a Greek in coin terms as though it were the cash
-exposure" failure mode, just one step removed.
+Real position tracking (persisted, with P&L) is M8's job; this is just a
+list of signed-size positions in session state, summed for a risk view.
+Cash aggregation is always valid (cash Greeks are additive regardless of
+settlement currency); native-unit aggregation only makes sense within one
+settlement currency and convention, so mixing those natively is refused
+rather than silently summed.
 """
 
 from __future__ import annotations

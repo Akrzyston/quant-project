@@ -114,11 +114,9 @@ class DeribitClient:
         self, instrument_name: str, *, start: datetime, end: datetime, resolution: str = "60"
     ) -> RawResponse:
         """OHLCV candles for any instrument, spot or option. resolution is in
-        MINUTES here ("60" = hourly, "1D" also accepted) -- confirmed against
-        the live endpoint. This is a different unit than fetch_dvol's
-        resolution, which is seconds; the two are easy to conflate because
-        both take a string that often reads "3600" or "60" and looks
-        interchangeable.
+        minutes here ("60" = hourly, "1D" also accepted) -- fetch_dvol's own
+        resolution is seconds, easy to conflate since both look like plain
+        numeric strings.
         """
         return self.fetch(
             "get_tradingview_chart_data",

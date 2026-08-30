@@ -2,19 +2,12 @@
 
 ΔPnL ≈ Δ·ΔS + ½Γ·ΔS² + Vega·Δσ + Θ·Δt + residual
 
-Terms are taken from the START-of-period Greeks (snapshot A), against the
-ACTUAL repriced difference -- the residual is whatever this 2nd-order
-expansion misses (cross terms like vanna·ΔS·Δσ, higher-order moves, and any
-genuine model misspecification). It is always reported as its own field,
-never subtracted away or folded into another term: a large residual is
-evidence the model is wrong, not noise to be absorbed.
-
-Vega and theta are divided by vega_bump/theta_period rather than assumed to
-be "per unit vol" and "per year" -- every model in this library currently
-sets both to 1.0 (raw analytic derivatives), but the Greeks dataclass itself
-declares them as real per-instance metadata, not a global constant, so the
-formula reads them off the actual Greeks object rather than hardcoding
-today's convention.
+Terms come from the start-of-period Greeks, checked against the actual
+repriced difference; the residual (cross terms, higher-order moves,
+misspecification) is always its own field, never absorbed into another
+term. Vega and theta divide by vega_bump/theta_period rather than assuming
+"per unit vol" and "per year," since those are real per-instance metadata
+on Greeks, not a global constant.
 """
 
 from __future__ import annotations

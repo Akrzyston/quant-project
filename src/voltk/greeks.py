@@ -31,21 +31,15 @@ class Greeks:
 
 
 def cash_greeks_from_coin(coin: Greeks, coin_price: float, forward: float, spot: float) -> Greeks:
-    """Cash (quote-currency) Greeks of a position whose coin-denominated value
-    is V_coin(F), given V_cash(S) = V_coin(F(S)) * S with F(S) = S*exp(rate*tau)
-    -- the exact futures-basis relationship Universe.implied_rate already
-    solves. `coin` must be Greeks computed AT `forward`: every forward-
-    parameterised model in this library (Black76, Bachelier, InverseOption)
-    reports delta this way, as dV/dF, not dV/dS.
-
-    Delta and gamma pick up a structural correction from the self-quanto
-    product rule -- this is not a units conversion, it changes the formula.
-    Gamma additionally needs the F/S = exp(rate*tau) factor: naively
-    substituting F for S in 2*delta + F*gamma recovers delta exactly (by a
-    coincidence of the algebra) but is off by a material amount in gamma,
-    verified against a direct finite difference of V_cash(S) itself. Vega,
-    theta, rho, vanna and volga are simple spot multiples, since a vol/tau/
-    rate bump holds both F and S fixed -- no product-rule term appears.
+    """Cash (quote-currency) Greeks from coin Greeks, given
+    V_cash(S) = V_coin(F(S)) * S with F(S) = S*exp(rate*tau). `coin` must be
+    Greeks computed at `forward` (every forward-parameterised model here
+    reports delta as dV/dF). Delta and gamma pick up a real structural
+    correction from the self-quanto product rule, not a plain units
+    conversion -- gamma additionally needs the F/S factor, or it's off by a
+    material amount versus a direct finite difference of V_cash(S). Vega,
+    theta, rho, vanna and volga are simple spot multiples, since those bumps
+    hold both F and S fixed.
     """
     ratio = forward / spot
     delta = coin_price + forward * coin.delta
