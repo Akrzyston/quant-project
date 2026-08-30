@@ -22,6 +22,7 @@ from voltk.pnl import attribute_pnl
 from voltk.portfolio import Position, aggregate_greeks
 from voltk.realized_vol import close_to_close, infer_periods_per_year
 from voltk.strategy import (
+    StrategyError,
     backtest_premium_sharpe,
     capacity_from_open_interest,
     check_kill_conditions,
@@ -229,7 +230,11 @@ def _sizing_block(call_greeks, put_greeks, currency: str) -> tuple[float, float]
     vega_budget = st.number_input(
         f"Vega risk budget ({currency}, coin)", min_value=0.0001, value=1.0, step=0.1, key="position_vega_budget"
     )
-    size = size_for_vega_budget(vega_per_straddle, vega_budget)
+    try:
+        size = size_for_vega_budget(vega_per_straddle, vega_budget)
+    except StrategyError:
+        st.caption("This strike has no vega left to size against (too deep or too close to expiry).")
+        return 0.0, vega_budget
     st.metric("Straddles (short)", f"{size:g}", help=f"vega/straddle {vega_per_straddle:.6f}")
     return size, vega_budget
 

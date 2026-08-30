@@ -62,7 +62,7 @@ def size_for_vega_budget(vega_per_contract: float, vega_budget: float) -> float:
         raise StrategyError(f"vega_budget must be positive, got {vega_budget!r}.")
     if vega_per_contract == 0:
         raise StrategyError("vega_per_contract is zero; can't size off it.")
-    return math.floor(vega_budget / abs(vega_per_contract))
+    return float(math.floor(vega_budget / abs(vega_per_contract)))
 
 
 @dataclass(frozen=True, slots=True)
