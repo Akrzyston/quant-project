@@ -22,9 +22,9 @@ def _response(data: list) -> RawResponse:
     )
 
 
-def test_dvol_series_parses_ohlc_rows() -> None:
+def test_dvol_series_parses_ohlc_rows_converting_percentage_to_decimal() -> None:
     ts = int(AS_OF.timestamp() * 1000)
-    response = _response([[ts, 0.20, 0.22, 0.19, 0.21]])
+    response = _response([[ts, 20.0, 22.0, 19.0, 21.0]])
 
     series = parse.dvol_series(response, currency="BTC")
 
@@ -35,19 +35,22 @@ def test_dvol_series_parses_ohlc_rows() -> None:
     assert series.latest is point
 
 
-def test_dvol_series_is_never_treated_as_a_percentage() -> None:
+def test_dvol_series_wire_values_are_a_percentage_not_a_decimal_fraction() -> None:
+    # Confirmed against the live endpoint (BTC and ETH both return values in
+    # the 20s-50s, not 0.2-0.5) -- a raw wire value this large would be an
+    # absurd annualized vol if it were already a decimal fraction.
     ts = int(AS_OF.timestamp() * 1000)
-    response = _response([[ts, 0.212860821, 0.212860821, 0.212860821, 0.212860821]])
+    response = _response([[ts, 37.95, 38.14, 37.84, 37.95]])
 
     series = parse.dvol_series(response, currency="BTC")
 
-    assert series.latest.close == pytest.approx(0.212860821)
+    assert series.latest.close == pytest.approx(0.3795)
     assert series.latest.close < 1.0
 
 
 def test_dvol_series_skips_malformed_rows() -> None:
     ts = int(AS_OF.timestamp() * 1000)
-    response = _response([[ts, 0.2, 0.2, 0.2], [ts, 0.2, 0.22, 0.19, 0.21]])
+    response = _response([[ts, 20.0, 20.0, 20.0], [ts, 20.0, 22.0, 19.0, 21.0]])
 
     series = parse.dvol_series(response, currency="BTC")
 
@@ -58,7 +61,7 @@ def test_dvol_series_sorts_by_timestamp() -> None:
     early = int(AS_OF.timestamp() * 1000)
     late = early + 3600_000
     response = _response(
-        [[late, 0.2, 0.2, 0.2, 0.22], [early, 0.2, 0.2, 0.2, 0.20]]
+        [[late, 20.0, 20.0, 20.0, 22.0], [early, 20.0, 20.0, 20.0, 20.0]]
     )
 
     series = parse.dvol_series(response, currency="BTC")

@@ -78,19 +78,27 @@ class DvolSeries:
 
 
 def dvol_series(response: RawResponse, *, currency: str) -> DvolSeries:
-    """DVOL candles: [timestamp_ms, open, high, low, close], values a decimal
-    fraction (0.21... = 21% annualized vol), never a percentage. Direct key
-    access on the envelope (unlike book_summary's per-row .get() leniency) --
-    a changed top-level shape should fail loudly, not silently return nothing.
+    """DVOL candles: [timestamp_ms, open, high, low, close]. Values on the
+    wire are a PERCENTAGE NUMBER (37.95 means 37.95% annualized vol), not a
+    decimal fraction -- confirmed directly against the live endpoint for two
+    currencies (a value below 1.0 or above roughly 300 would be an absurd
+    annualized vol either way, so the scale is unambiguous), correcting an
+    earlier, wrong assumption that was never checked against a real response.
+    Divided by 100 here, in the one place it needs to happen, so this stays
+    on the same decimal-fraction scale every other vol figure in this
+    library uses -- historical_volatility_series's neighbouring endpoint
+    included. Direct key access on the envelope (unlike book_summary's
+    per-row .get() leniency) -- a changed top-level shape should fail
+    loudly, not silently return nothing.
     """
     rows = response.result().get("data", [])
     points = [
         DvolPoint(
             timestamp=datetime.fromtimestamp(row[0] / 1000, tz=UTC),
-            open=float(row[1]),
-            high=float(row[2]),
-            low=float(row[3]),
-            close=float(row[4]),
+            open=float(row[1]) / 100.0,
+            high=float(row[2]) / 100.0,
+            low=float(row[3]) / 100.0,
+            close=float(row[4]) / 100.0,
         )
         for row in rows
         if len(row) >= 5
@@ -114,10 +122,9 @@ class RealizedVolSeries:
 def historical_volatility_series(response: RawResponse, *, currency: str) -> RealizedVolSeries:
     """get_historical_volatility rows are [timestamp_ms, value]. value is a
     PERCENTAGE NUMBER (22.3 means 22.3% annualized) -- confirmed against the
-    live endpoint directly, since Deribit's own docs don't state it and
-    dvol_series's neighbouring endpoint uses the opposite convention (a
-    decimal fraction). Divided by 100 here so this is the only place that
-    conversion happens and every vol number elsewhere in this library stays
+    live endpoint directly, since Deribit's own docs don't state it. Divided
+    by 100 here, the same convention dvol_series applies to its own
+    percentage-scale wire values, so every vol number in this library stays
     on the same decimal-fraction scale.
     """
     rows = response.result()
