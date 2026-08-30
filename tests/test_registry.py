@@ -22,6 +22,7 @@ EXPECTED = {
     ("forward_curve", "main", 17),
     ("smile", "main", 18),
     ("surface_3d", "main", 19),
+    ("snapshot_browser", "main", 20),
     ("quoting_parameters", "quoter_rail", 10),
     ("mock_orderbook", "quoter_main", 10),
 }
