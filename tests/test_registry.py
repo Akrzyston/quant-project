@@ -24,6 +24,7 @@ EXPECTED = {
     ("surface_3d", "main", 19),
     ("snapshot_browser", "main", 20),
     ("vol_history", "main", 22),
+    ("position_view", "main", 24),
     ("quoting_parameters", "quoter_rail", 10),
     ("mock_orderbook", "quoter_main", 10),
 }
