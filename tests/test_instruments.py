@@ -38,24 +38,11 @@ def test_settlement_falls_back_to_currency_comparison() -> None:
     assert Instrument.from_deribit(payload).is_inverse
 
 
-def test_missing_convention_raises_rather_than_defaulting() -> None:
+@pytest.mark.parametrize("field", ["contract_size", "instrument_name", "settlement_currency"])
+def test_missing_required_field_raises_rather_than_defaulting(field) -> None:
     payload = _payload()
-    payload.pop("contract_size")
-    with pytest.raises(MetadataError, match="contract_size"):
-        Instrument.from_deribit(payload)
-
-
-def test_missing_instrument_name_raises_rather_than_defaulting() -> None:
-    payload = _payload()
-    payload.pop("instrument_name")
-    with pytest.raises(MetadataError, match="instrument_name"):
-        Instrument.from_deribit(payload)
-
-
-def test_missing_settlement_currency_raises_rather_than_defaulting() -> None:
-    payload = _payload()
-    payload.pop("settlement_currency")
-    with pytest.raises(MetadataError, match="settlement_currency"):
+    payload.pop(field)
+    with pytest.raises(MetadataError, match=field):
         Instrument.from_deribit(payload)
 
 
