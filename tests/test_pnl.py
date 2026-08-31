@@ -54,9 +54,9 @@ def test_larger_combined_move_has_a_bounded_not_zero_residual() -> None:
 
 
 def test_theta_sign_convention_pure_time_roll() -> None:
-    """theta = -dV/dtau in this codebase (confirmed against the FD test
-    harness's own sign flip), so Theta*elapsed_years with elapsed_years
-    positive should closely match a pure time roll with nothing else moving.
+    """theta = -dV/dtau in this codebase, matching the FD test harness's own
+    sign flip, so Theta*elapsed_years with elapsed_years positive should
+    closely match a pure time roll with nothing else moving.
     """
     d_t = 10.0 / 365.0
     price_a = MODEL.price(FORWARD, STRIKE, TAU, VOL, RATE, CP.CALL)

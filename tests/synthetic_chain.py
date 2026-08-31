@@ -56,11 +56,11 @@ def build_synthetic_chain(
     permanently-zero rate can never distinguish from a bug).
 
     Priced via InverseOption, not Black76: real Deribit option marks are
-    coin-denominated (confirmed against Deribit's own docs -- "Bitcoin
-    options are priced in Bitcoin"), not quote-currency, and a fixture that
-    used quote-scale prices masked a real coin/quote conversion bug in
-    smile_points for a long time. This fixture must match what a real chain
-    actually looks like.
+    coin-denominated, not quote-currency -- Deribit's own docs: "Bitcoin
+    options are priced in Bitcoin" -- and a fixture that used quote-scale
+    prices masked a real coin/quote conversion bug in smile_points for a
+    long time. This fixture must match what a real chain actually looks
+    like.
     """
     svi = svi or DEFAULT_SVI
     expiry = AS_OF + timedelta(seconds=tau * 365.0 * 24 * 3600)

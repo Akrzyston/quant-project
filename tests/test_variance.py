@@ -41,9 +41,9 @@ def test_model_free_variance_recovers_flat_vol_at_a_nonzero_rate() -> None:
     quote-currency via price*forward already equals Black76(rate=R)*e^{R*tau}
     for any R (an identity of the model, not an approximation -- see
     variance.py's module docstring), so it has already performed the CBOE
-    formula's own e^{rT} undiscounting. Applying e^{rT} again on top double-
-    counts it: verified numerically that doing so moves this same recovery
-    from ~0.85% off to ~2.1% off at a rate of 0.15. A permanently-zero rate
+    formula's own e^{rT} undiscounting. Applying e^{rT} again on top
+    double-counts it, moving this same recovery from ~0.85% off to ~2.1%
+    off at a rate of 0.15. A permanently-zero rate
     (every other test in this file) can never distinguish the two.
     """
     universe, marks, implied_forward = build_synthetic_chain(

@@ -36,9 +36,9 @@ def test_dvol_series_parses_ohlc_rows_converting_percentage_to_decimal() -> None
 
 
 def test_dvol_series_wire_values_are_a_percentage_not_a_decimal_fraction() -> None:
-    # Confirmed against the live endpoint (BTC and ETH both return values in
-    # the 20s-50s, not 0.2-0.5) -- a raw wire value this large would be an
-    # absurd annualized vol if it were already a decimal fraction.
+    # The live endpoint returns values in the 20s-50s for both BTC and ETH,
+    # not 0.2-0.5 -- a raw wire value this large would be an absurd
+    # annualized vol if it were already a decimal fraction.
     ts = int(AS_OF.timestamp() * 1000)
     response = _response([[ts, 37.95, 38.14, 37.84, 37.95]])
 
