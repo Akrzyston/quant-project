@@ -4,7 +4,7 @@ A reusable pricing/risk library with a Streamlit view on the outside. The
 dashboard accumulates one panel per milestone.
 
 ```
-uv run pytest -q                        # 898 cases
+uv run pytest -q                        # 899 cases
 uv run streamlit run streamlit_app.py
 make all                                # regenerate every report figure
 ```
