@@ -21,6 +21,7 @@ from voltk.shocks import build_ladder, level_shock_magnitudes_from_dvol
 from voltk.skew import skew_adjusted_delta
 from voltk.surface import Surface, SurfaceError, calibrate_svi_slice, log_moneyness, smile_points
 from voltk.universe import UniverseError
+from voltk.vega_buckets import bucket_vega
 
 DEFAULT_LEVEL_MULTIPLES = (-0.4, -0.2, 0.2, 0.4)
 
