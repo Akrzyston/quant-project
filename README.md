@@ -1,13 +1,53 @@
 # voltk -- volatility toolkit + dashboard
 
-A reusable pricing/risk library with a Streamlit view on the outside. The
-dashboard accumulates one panel per milestone.
+A systematic short-volatility strategy (M8), and the pricing library it
+needed in order to trade that strategy honestly: live option chains from
+Deribit, a vol surface fit independently of the venue's own published
+number, a pricing/risk engine that gets crypto's coin-settled payoffs right,
+and a Streamlit dashboard that runs all of it -- strategy included --
+against the live market.
 
 ```
 uv run pytest -q                        # 899 cases
 uv run streamlit run streamlit_app.py
 make all                                # regenerate every report figure
 ```
+
+## Why this exists
+
+The trade at the center of this project is simple to state and easy to get
+wrong: sell volatility when Deribit's implied vol sits above what's actually
+realizing, delta-hedge to isolate that view from direction, and size and cap
+the position honestly enough that one bad week doesn't erase months of
+collected theta. `docs/strategy_proposal.md` is the memo; the Position panel
+(M8) runs the same logic live against whatever the chain looks like right
+now.
+
+Everything before M8 exists because that trade can't be run honestly
+without it:
+
+- Selling vol you believe is "rich" only means something if the vol number
+  is computed independently of the venue's own mark, not borrowed from it
+  (M2/M3).
+- A coin-settled option needs a pricing model built for that from the
+  start, not a dollar-priced model with the payoff bolted on after -- the
+  payoff is non-linear in a way a units conversion can't fix (M1).
+- Sizing and hedging a short-gamma book needs Greeks that are right in both
+  coin and cash terms, under both plausible ways a skewed smile can move
+  (M4).
+- Trusting a P&L number means being able to say which term produced it, not
+  just that it moved (M5).
+- Calling implied vol "rich" requires an independent realized-vol
+  measurement to be rich against, tracked over time -- that comparison is
+  the actual signal M8 trades on (M6).
+- Quoting a position wide enough to survive actually trading it, not just
+  holding it, needs a two-sided market simulation with its own attributed
+  fill P&L (M7).
+
+M8 is where all of that gets spent on one decision: is today a day to put
+this trade on. The honest answer is often no -- the panel states a negative
+premium in the same breath as a positive one, because a risk tool that only
+shows you trades that work isn't checking anything.
 
 ## The boundary
 
@@ -534,7 +574,9 @@ a caption explaining why instead of a wrong number.
 
 ## M8 -- strategy proposal, position, and P&L
 
-Full memo in `docs/strategy_proposal.md`, which names the losing scenario
+This is the payoff the rest of the project was built to support -- see "Why
+this exists" above. Full memo in `docs/strategy_proposal.md`, which names
+the losing scenario
 before anything else per the milestone's own accept criteria. One tradeable
 relationship: a delta-hedged short straddle sized off M6's own measured VRP,
 using `voltk/strategy.py`. Hedging and expected-edge sizing both reuse
