@@ -87,7 +87,7 @@ def render() -> None:
         """
 **Why the shapes differ.** Settlement-currency delta is `K N(d2) / F²`, which is
 zero at both ends of the strike axis and humped in between. At low strikes `N(d2)`
-tends to one while `K` tends to zero, so the product vanishes — a deep in-the-money
+tends to one while `K` tends to zero, so the product vanishes -- a deep in-the-money
 coin-settled call is worth about one coin whatever the underlying does, and one coin
 is worth one coin, so there is no exposure left to measure. At high strikes `N(d2)`
 decays faster than `K` grows, the ordinary reason an out-of-the-money option has no

@@ -13,19 +13,19 @@ captured versus a Taylor-decomposed markout move, reusing the same
 `voltk.quoting.derive_width` sums three terms, each a real cost a market
 maker is compensated for:
 
-- **Fit term** — `vega * |fit_residual_vol|`. If the raw market mark at this
+- **Fit term** -- `vega * |fit_residual_vol|`. If the raw market mark at this
   strike sits away from the fitted curve, that's model uncertainty, and
   vega converts a vol-space uncertainty into a dollar one.
-- **Gamma term** — `0.5 * gamma * (expected move)^2`, the textbook cost of
+- **Gamma term** -- `0.5 * gamma * (expected move)^2`, the textbook cost of
   not being able to rehedge continuously. The expected move is
   `underlying * vol * sqrt(rehedge_interval)`, sized off this option's own
   implied vol rather than a guessed constant. `rehedge_interval` is a
-  stated one-hour assumption — how often a maker actually requotes.
-- **Liquidity term** — a fraction of the live market's own half-spread. A
+  stated one-hour assumption -- how often a maker actually requotes.
+- **Liquidity term** -- a fraction of the live market's own half-spread. A
   thin market is itself evidence that unwinding a position will cost more.
 
 Coefficients on each term are stated parameters in the Mock Quoter panel,
-not per-instrument tuning — the function mapping them to a width never
+not per-instrument tuning -- the function mapping them to a width never
 changes.
 
 ## Inventory skew
@@ -35,7 +35,7 @@ by `inventory * risk_aversion * vol^2 * tau` (Avellaneda & Stoikov, 2008).
 Positive inventory pulls the reservation price down, making the ask more
 attractive to sell down the position and the bid less attractive to add to
 it; negative inventory does the reverse. This is the standard formula, not
-a derived one — the width formula above is what's actually specific to
+a derived one -- the width formula above is what's actually specific to
 this project.
 
 ## The simulated session
@@ -48,17 +48,17 @@ through the currently quoted side.
 
 This is a maximally-informed-counterparty rule: every fill is, by
 construction, one that was about to go against us. It gives an upper bound
-on adverse selection, not an average trading session — stated explicitly
+on adverse selection, not an average trading session -- stated explicitly
 in the panel, not left implicit. A real book sees plenty of fills that
 never get run over.
 
-Each fill's markout is reattributed via `voltk.pnl.attribute_pnl` — the
+Each fill's markout is reattributed via `voltk.pnl.attribute_pnl` -- the
 same identity M5 built for snapshot-to-snapshot P&L, here applied
 fill-to-markout instead. `edge_captured` is the width actually realized at
 the fill; `delta_term + gamma_term` is what this project calls adverse
 selection (the directional cost of the market moving against the resulting
 position); `vega_term` is reported on its own, and is zero in the current
-implementation since vol is held constant per session — the machinery
+implementation since vol is held constant per session -- the machinery
 supports a real per-step vol path, it just isn't wired to one yet. The
 residual is never folded into another term.
 

@@ -4,7 +4,7 @@
 
 A coin-settled call is not a Black-Scholes call because it pays out in the same
 asset whose price determines the payoff, so its value measured in that asset is
-`max(S-K,0)/S` — bounded above by one coin and concave in `S` — rather than the
+`max(S-K,0)/S` -- bounded above by one coin and concave in `S` -- rather than the
 unbounded, linear-above-strike payoff Black-Scholes prices.
 
 ## Setup and notation
@@ -40,7 +40,7 @@ E^S[1/S_T]  =  E^T[(S_T / F) * (1/S_T)]  =  1/F
 ```
 
 `X` is a martingale under the coin measure with forward `1/F`. If `S` is
-lognormal with vol `sigma`, so is `X`, with the same vol — inverting a lognormal
+lognormal with vol `sigma`, so is `X`, with the same vol -- inverting a lognormal
 negates the log but does not change its dispersion.
 
 Under the coin numeraire the coin money market is the numeraire, so there is no
@@ -126,7 +126,7 @@ hold approximately one coin, and one coin is worth one coin. There is no
 remaining exposure to measure.
 
 At high strikes `N(d2)` decays faster than `K` grows, so the product vanishes
-again — the ordinary reason an out-of-the-money option has no delta.
+again -- the ordinary reason an out-of-the-money option has no delta.
 
 The peak sits between. In the quote currency the same contract has the familiar
 monotone delta falling from one to zero; `test_quote_currency_delta_is_monotone_by_contrast`
@@ -176,7 +176,7 @@ Three differences from anything in the traditional model:
 
 The inverse option is the opposite case on every count. The conversion asset *is*
 the underlying, so correlation is exactly one and the vol of the conversion rate
-is exactly the vol of the underlying — nothing to estimate and nothing to hedge
+is exactly the vol of the underlying -- nothing to estimate and nothing to hedge
 separately. The adjustment is therefore an exact change of numeraire rather than
 a correlation input, which is why the result is a clean closed form instead of an
 approximation. And because the conversion rate is stochastic and identical to the

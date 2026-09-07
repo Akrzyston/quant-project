@@ -4,14 +4,14 @@
 
 This position is short gamma. It makes money in small, steady increments
 (theta) for as long as the underlying doesn't move much, and loses money in
-large, fast increments exactly when it does. A single vol spike — a real
-move, a liquidation cascade, a macro surprise — can erase weeks or months of
+large, fast increments exactly when it does. A single vol spike -- a real
+move, a liquidation cascade, a macro surprise -- can erase weeks or months of
 collected theta in the time it takes to notice and react. Gamma losses on a
 short-vol position are not linear in the size of the move; a move twice as
 large costs roughly four times as much (0.5 · Γ · ΔS²), so the tail is where
 this trade actually loses, not the middle of the distribution. The historical
 backtest below cannot see this risk if the window it's computed over didn't
-contain one — see "What the Sharpe number doesn't tell you."
+contain one -- see "What the Sharpe number doesn't tell you."
 
 This is priced in, not hidden: the kill conditions below exist specifically
 to cut the position before a spike turns into the loss described above, and
@@ -30,7 +30,7 @@ by *realized* vol, not the *implied* vol the position was struck at. If
 realized comes in below implied, theta collected exceeds the expected gamma
 loss.
 
-This premium is not always positive — the dashboard's Position panel reads
+This premium is not always positive -- the dashboard's Position panel reads
 it live and states plainly when it's negative that this is a reason not to
 put the trade on, not a number to explain away.
 
@@ -48,14 +48,14 @@ starts genuinely delta-neutral rather than approximately so.
 
 `size_for_vega_budget` picks the largest whole number of straddles whose
 total vega stays within a stated risk budget (vega, not premium or notional
-— vega is the honest unit of risk for a position whose entire thesis is
+-- vega is the honest unit of risk for a position whose entire thesis is
 about volatility). The budget is a number the trader states up front, not
 backed out from what feels right after seeing the position.
 
 ## Capacity
 
 `capacity_from_open_interest` caps the position at a stated participation
-rate (10% by default) of the *binding* leg's open interest — whichever of
+rate (10% by default) of the *binding* leg's open interest -- whichever of
 the call or put has less depth. A position sized off vega budget alone can
 come out larger than the market can actually absorb; the panel shows both
 numbers side by side so that mismatch is visible, not discovered at the
@@ -66,7 +66,7 @@ worst time.
 The panel's combined-risk table reports delta (≈0, by construction), gamma,
 vega, theta, rho, vanna, and volga for the hedged position, plus the
 expected 1-day gamma and theta P&L split out separately using the currently
-measured realized vol — so the sign of the expected edge is visible before
+measured realized vol -- so the sign of the expected edge is visible before
 the position is sized, not after.
 
 ## Kill conditions
@@ -74,14 +74,14 @@ the position is sized, not after.
 Three independent, always-evaluated checks (`check_kill_conditions`), so a
 breach in one doesn't hide a breach in another:
 
-1. **Realized vol thesis** — stop if trailing realized vol runs past 1.5x
+1. **Realized vol thesis** -- stop if trailing realized vol runs past 1.5x
    the vol the position was struck at. The thesis was "implied is rich
    against realized"; if realized catches up and passes implied, the thesis
    is falsified, not just under pressure.
-2. **Loss budget** — stop if mark-to-market loss exceeds half the vega risk
+2. **Loss budget** -- stop if mark-to-market loss exceeds half the vega risk
    budget. A budget that only bounds initial sizing and never triggers an
    exit isn't a risk limit.
-3. **Time to expiry** — stop (or refuse to enter) inside 3 days to expiry.
+3. **Time to expiry** -- stop (or refuse to enter) inside 3 days to expiry.
    Gamma accelerates as expiry approaches; the risk this position is being
    compensated for gets materially worse right when there's the least time
    left to react to it.
@@ -89,7 +89,7 @@ breach in one doesn't hide a breach in another:
 ## What the Sharpe number doesn't tell you
 
 The Position panel computes a backtested Sharpe from the trailing daily
-premium series and reports it — the milestone asks for this to be caveated,
+premium series and reports it -- the milestone asks for this to be caveated,
 not omitted. Three separate reasons the number overstates what running this
 strategy would actually deliver:
 
