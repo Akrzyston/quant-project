@@ -7,10 +7,13 @@ snapshot replay; panels never construct a source themselves.
 
 from __future__ import annotations
 
+import pickle
+from dataclasses import fields, is_dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import streamlit as st
+from streamlit.runtime.caching.cache_errors import UnserializableReturnValueError
 
 from app import state
 from voltk.capture import Capture, dossier
@@ -61,6 +64,43 @@ def _live_capture(spec_key: str, currencies: tuple[str, ...]) -> Capture:
     return run_capture(client(), UniverseSpec.of(currencies))
 
 
+def _find_unpicklable_path(obj: Any, path: str = "capture", seen: set[int] | None = None, depth: int = 0) -> str | None:
+    """Walk a dataclass/dict/list/tuple tree and return a dotted path to the
+    first value that fails to pickle on its own -- diagnostic only, for
+    tracking down an UnserializableReturnValueError that hasn't reproduced
+    outside a live session. Not called on any success path.
+    """
+    if seen is None:
+        seen = set()
+    if depth > 10 or id(obj) in seen:
+        return None
+    try:
+        pickle.dumps(obj)
+        return None
+    except Exception:
+        pass
+    seen.add(id(obj))
+    if is_dataclass(obj) and not isinstance(obj, type):
+        for f in fields(obj):
+            found = _find_unpicklable_path(getattr(obj, f.name), f"{path}.{f.name}", seen, depth + 1)
+            if found:
+                return found
+        return path
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            found = _find_unpicklable_path(v, f"{path}[{k!r}]", seen, depth + 1)
+            if found:
+                return found
+        return path
+    if isinstance(obj, (list, tuple)):
+        for i, v in enumerate(obj):
+            found = _find_unpicklable_path(v, f"{path}[{i}]", seen, depth + 1)
+            if found:
+                return found
+        return path
+    return f"{path} (leaf, type {type(obj).__name__})"
+
+
 def active_universe() -> tuple[Universe, dict[str, Any]]:
     """The universe the dashboard is currently showing, live or replayed."""
     s = state.get()
@@ -69,7 +109,15 @@ def active_universe() -> tuple[Universe, dict[str, Any]]:
 
     if s.is_live:
         spec = UniverseSpec.of(s.currencies)
-        capture = _live_capture(spec.key(), spec.currencies)
+        try:
+            capture = _live_capture(spec.key(), spec.currencies)
+        except UnserializableReturnValueError:
+            fresh = run_capture(client(), spec)
+            bad_path = _find_unpicklable_path(fresh)
+            raise MarketDataError(
+                f"Live capture built but the cache couldn't pickle it (first bad field: {bad_path}). "
+                "This is a diagnostic message, not the normal failure mode -- please report this path."
+            ) from None
         return capture.universe, {
             "source": capture.source_label,
             "quality": capture.quality,
