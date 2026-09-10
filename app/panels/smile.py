@@ -26,6 +26,7 @@ TARGET_TENOR_DAYS = 30.0
     slot=Slot.MAIN,
     order=18,
     milestone="M3",
+    caption="The per-expiry smile in total variance against log-moneyness, checked against Deribit's own DVOL: a number that's actually verifiable, not just plausible-looking.",
 )
 def render() -> None:
     s = state.get()

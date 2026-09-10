@@ -8,7 +8,7 @@ and a Streamlit dashboard that runs all of it -- strategy included --
 against the live market.
 
 ```
-uv run pytest -q                        # 899 cases
+uv run pytest -q                        # 932 cases
 uv run streamlit run streamlit_app.py
 make all                                # regenerate every report figure
 ```
@@ -316,9 +316,8 @@ exception rather than a retroactive rewrite of what came before.
 
 `Surface.dvol_dspot` was mislabeled. It bumped the forward and held the
 fitted SVI curve fixed in relative log-moneyness `k=ln(K/F)` -- the smile
-"follows the underlying," which is the textbook definition of **sticky-delta**
-(confirmed against an independent options-theory source), not sticky-strike
-as the old docstring claimed. Genuine sticky-strike means the smile is pinned
+"follows the underlying," the textbook definition of **sticky-delta**, not
+sticky-strike as the old docstring claimed. Genuine sticky-strike means the smile is pinned
 to absolute strikes, so vol at a fixed strike does not move at all -- it is
 identically zero, which has a clean financial reading used below. Split into
 `Surface.dvol_dforward_sticky_delta`, `Surface.dvol_dspot_sticky_delta`
@@ -340,9 +339,9 @@ Vega_cash = S·Vega_coin   (and theta, rho, vanna, volga the same way)
 `InverseOption`'s Greeks are *forward* Greeks (`Δ_coin = ∂V_coin/∂F`), and
 cash value is a genuinely *spot* quantity -- delta comes out right even from a
 naive `F`-for-`S` substitution (a coincidence of the algebra), but gamma is
-off by a real, material amount (~4% at a realistic rate) without the
-`exp(rate·τ)` factor, verified against a direct finite difference of
-`V_cash(S)`. Vega/theta/rho/vanna/volga stay simple spot multiples, since a
+off by a real, material amount (~4% at a realistic rate, the same gap a
+direct finite difference of `V_cash(S)` shows) without the `exp(rate·τ)`
+factor. Vega/theta/rho/vanna/volga stay simple spot multiples, since a
 vol/tau/rate bump holds both `F` and `S` fixed -- no product-rule term. Tests
 regression-lock the trap: cash delta and gamma are asserted to *differ* from
 the naive forms, not just to match the correct ones.
@@ -418,8 +417,8 @@ position tracking is M8's job.
 
 Every M3/M4 test built its synthetic chain by pricing through `Black76`
 (quote-currency scale). Deribit actually quotes options in the settlement
-(coin) currency -- confirmed against Deribit's own docs and support articles,
-"Bitcoin options are priced in Bitcoin" -- and `smile_points`/
+(coin) currency -- Deribit's own docs and support articles: "Bitcoin options
+are priced in Bitcoin" -- and `smile_points`/
 `model_free_variance` fed those coin-scale marks straight into a quote-scale
 Black76 reference/CBOE sum with no conversion. Nothing crashed (unsolvable
 points were quietly dropped, or the variance number was just wrong), and
@@ -475,7 +474,7 @@ actually implies is the only safe comparison unit.
 
 `voltk/pnl.py`'s `attribute_pnl` implements the identity in
 `docs/pnl_attribution.md`, which is worth reading in full for the theta sign
-convention (verified against the FD test harness's own sign flip) and a
+convention (matching the FD test harness's own sign flip) and a
 second, subtler coin/cash unit trap distinct from M4's: `cash_greeks_from_coin`'s
 delta and gamma are **spot** derivatives, but `InverseOption`'s own Greeks
 are **forward** derivatives -- so the attribution's `dS` must be the spot
@@ -592,12 +591,29 @@ newly parsed onto `Quote`, alongside the bid/ask/mark M2 already extracted).
 Kill conditions are three independent, always-evaluated checks, not a single
 short-circuited one, so a caller sees every breach at once.
 
-The Position panel also computes a backtested Sharpe from the trailing daily
-VRP and reports it with three explicit caveats (no historical chain to
-reprice against, autocorrelation inflating the `sqrt(365)` annualization, and
-survivorship of a window that happened not to contain a vol spike) -- directly
-answering the milestone's own "any Sharpe claim" requirement rather than
-avoiding the topic by not computing one.
+The Position panel also computes a backtested Sharpe and reports it with
+three explicit caveats (no historical chain to reprice against, autocorrelation
+inflating the `sqrt(365)` annualization, and survivorship of a window that
+happened not to contain a vol spike) -- directly answering the milestone's
+own "any Sharpe claim" requirement rather than avoiding the topic by not
+computing one. The premium series behind it goes back further than Deribit's
+own realized-vol history allows: that endpoint caps at ~16 days regardless of
+what's requested (confirmed live), so `voltk.realized_vol.rolling_realized_vol`
+computes a 7-day realized figure at every step over a 60-day window from raw
+candles instead, the same "compute your own" principle M3 already applies to
+DVOL. `voltk.variance_premium.favorable_windows` turns that into the contiguous
+stretches where implied sat above realized -- shaded on the panel's chart as
+the periods a simple "sell vol when it's rich" rule would have been in the
+trade. It's a timing illustration, not a P&L backtest: it says when the
+signal would have fired, not what running the position would have earned.
+
+The dashboard opens on this panel now, not on it last: `app/main.py` splits
+into a default "Strategy" tab (this panel, plus a condensed narrative and the
+two formulas -- VRP and expected edge -- that actually drive the decision) and
+a "Pricing Engine" tab holding M0-M7 exactly as before, one click away.
+Currency selection moved out of the M0-M7 rail into its own slot rendered
+above both tabs, since it's state both depend on, not something that belongs
+nested inside one tab's sidebar.
 
 Entry and live P&L are session-scoped (`state.scratch`, the same mechanism
 every other panel's ad hoc UI state already uses), not persisted -- matching
@@ -648,7 +664,7 @@ a database.
   choice, not new here) -- DVOL is a cross-check against an external published
   index with no bracketed-capture/replay concept, so an A-vs-B comparison's
   DVOL context is always "now," not "as of either snapshot."
-- The coin/quote conversion fix has only been verified against synthetic
+- The coin/quote conversion fix has only been tested against synthetic
   fixtures (including a deliberately nonzero-rate one), not live Deribit
   marks -- the same "needs a live run to confirm" caveat as the rest of the
   surface-fitting stack above.

@@ -1,7 +1,9 @@
 """Dashboard entry point.
 
-Owns the four regions of the layout and nothing else. Panel content comes from
-the registry, so adding a milestone does not touch this file.
+Owns the layout regions and nothing else. Panel content comes from the
+registry, so adding a milestone does not touch this file. The page opens on
+the Strategy tab (M8, Slot.FEATURED) -- everything else lives one tab over
+under Pricing Engine, unchanged internally.
 """
 
 from __future__ import annotations
@@ -21,6 +23,11 @@ from app.registry import Slot, discover, panels_for  # noqa: E402
 from voltk.marketdata import MarketDataError  # noqa: E402
 
 RAIL_RATIO = [0.32, 0.68]
+
+
+def _render_global(slot: Slot) -> None:
+    for spec in panels_for(slot):
+        spec.render()
 
 
 def _render_rail(slot: Slot) -> None:
@@ -56,6 +63,28 @@ def _render_main(slot: Slot) -> None:
                 spec.render()
 
 
+def _engine_intro() -> None:
+    st.markdown(
+        "Everything here is what the Strategy tab's one trade depends on: "
+        "a forward before a smile, a correctly fit smile before its Greeks "
+        "mean anything, the right unit before a hedge ratio can be "
+        "trusted. The rail on the left stays constant no matter which tab "
+        "is open on the right: pick the pricing model here, read whatever "
+        "contract is currently selected here, capture or replay a "
+        "snapshot here."
+    )
+    st.markdown(
+        "The tabs walk through that chain in order: capture, chain "
+        "hygiene, delta in both settlement units, the forward from "
+        "parity, a smile fit checked against Deribit's own index, the "
+        "surface assembled from every expiry, a snapshot comparison, "
+        "and vol dynamics against what actually realized. Each one is "
+        "a specific, checkable claim about the same chain, not an "
+        "arbitrary chart."
+    )
+    st.divider()
+
+
 def _header() -> None:
     s = state.get()
     st.title("Dashboard")
@@ -76,21 +105,33 @@ def main() -> None:
     discover()
     state.get()
     _header()
+    _render_global(Slot.GLOBAL)
 
     try:
-        top_rail, top_main = st.columns(RAIL_RATIO, gap="medium")
-        with top_rail:
-            _render_rail(Slot.LEFT_RAIL)
-        with top_main:
-            _render_main(Slot.MAIN)
+        strategy_tab, engine_tab = st.tabs(["Strategy", "Pricing Engine"])
+        with strategy_tab:
+            _render_main(Slot.FEATURED)
 
-        st.divider()
+        with engine_tab:
+            _engine_intro()
+            top_rail, top_main = st.columns(RAIL_RATIO, gap="medium")
+            with top_rail:
+                _render_rail(Slot.LEFT_RAIL)
+            with top_main:
+                _render_main(Slot.MAIN)
 
-        bottom_rail, bottom_main = st.columns(RAIL_RATIO, gap="medium")
-        with bottom_rail:
-            _render_rail(Slot.QUOTER_RAIL)
-        with bottom_main:
-            _render_main(Slot.QUOTER_MAIN)
+            st.divider()
+            st.markdown(
+                "The surface above becomes something tradeable below: a "
+                "two-sided quote, and a simulated session showing what "
+                "happens once the market actually trades against it."
+            )
+
+            bottom_rail, bottom_main = st.columns(RAIL_RATIO, gap="medium")
+            with bottom_rail:
+                _render_rail(Slot.QUOTER_RAIL)
+            with bottom_main:
+                _render_main(Slot.QUOTER_MAIN)
     except MarketDataError as exc:
         data.show_error(exc)
 

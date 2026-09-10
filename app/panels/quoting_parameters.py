@@ -16,6 +16,7 @@ from app.registry import Slot, panel
     slot=Slot.QUOTER_RAIL,
     order=10,
     milestone="M7",
+    caption="The inputs behind the quote width below, stated directly rather than hand-set.",
 )
 def render() -> None:
     q = state.get().quote
@@ -27,7 +28,7 @@ def render() -> None:
     q.fit_coef = st.slider("Fit-residual weight", 0.0, 5.0, q.fit_coef, 0.1)
     q.gamma_coef = st.slider("Rehedge (gamma) weight", 0.0, 5.0, q.gamma_coef, 0.1)
     q.liquidity_coef = st.slider("Illiquidity weight", 0.0, 2.0, q.liquidity_coef, 0.1)
-    q.floor_dollar = st.number_input("Minimum half-width", min_value=0.0, value=q.floor_dollar, step=0.0001, format="%.4f")
+    q.floor_coin = st.number_input("Minimum half-width (coin)", min_value=0.0, value=q.floor_coin, step=0.0001, format="%.4f")
 
     st.caption("Inventory skew (Avellaneda-Stoikov)")
     q.risk_aversion = st.slider("Risk aversion", 0.0, 50.0, q.risk_aversion, 0.5)

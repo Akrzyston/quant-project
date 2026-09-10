@@ -23,6 +23,7 @@ from voltk.universe import UniverseError
     slot=Slot.MAIN,
     order=17,
     milestone="M2",
+    caption="The forward from put-call parity, not the index Deribit's own chain display quietly substitutes for it. Pricing off the index instead skews every strike's moneyness the same direction.",
 )
 def render() -> None:
     s = state.get()
@@ -62,7 +63,7 @@ def render() -> None:
         pass
     figure.update_layout(
         xaxis_title="Expiry",
-        yaxis_title="Forward",
+        yaxis_title="Forward (quote currency)",
         height=420,
         margin=dict(l=10, r=10, t=30, b=10),
         legend=dict(orientation="h", y=1.12),
@@ -73,9 +74,9 @@ def render() -> None:
         [
             {
                 "Expiry": point.expiry.strftime("%Y-%m-%d"),
-                "Traded future": round(point.traded_future, 2),
-                "Implied forward": round(point.forward, 2),
-                "Basis": round(point.basis, 2),
+                "Traded future (quote currency)": round(point.traded_future, 2),
+                "Implied forward (quote currency)": round(point.forward, 2),
+                "Basis (quote currency)": round(point.basis, 2),
                 "Basis (bps)": round(point.basis_bps, 1),
                 "Pairs used": point.pairs_used,
             }

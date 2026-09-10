@@ -26,6 +26,7 @@ GRID_POINTS = 160
     slot=Slot.MAIN,
     order=15,
     milestone="M1",
+    caption="The same contract's delta in settlement currency versus quote currency, side by side. They're not a unit conversion apart.",
 )
 def render() -> None:
     s = state.get()

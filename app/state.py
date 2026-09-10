@@ -23,7 +23,7 @@ class QuoteParams:
     fit_coef: float = 1.0
     gamma_coef: float = 1.0
     liquidity_coef: float = 0.5
-    floor_dollar: float = 0.0
+    floor_coin: float = 0.0
     risk_aversion: float = 0.0
 
 

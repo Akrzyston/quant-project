@@ -30,6 +30,7 @@ GRID_POINTS = 41
     slot=Slot.MAIN,
     order=20,
     milestone="M5",
+    caption="Two snapshots, compared: what moved on the surface, and a held position's P&L split into delta, gamma, vega, and theta rather than reported as one number.",
 )
 def render() -> None:
     s = state.get()
@@ -202,14 +203,14 @@ def _attribution_block(universe_a, marks_a, universe_b, marks_b, currency: str, 
                 continue
             rows.append(
                 {
-                    "Instrument": name, "Price A": round(attribution.price_a, 6),
-                    "Price B": round(attribution.price_b, 6),
-                    "Actual PnL": round(size * attribution.actual_pnl, 6),
-                    "Delta term": round(size * attribution.delta_term, 6),
-                    "Gamma term": round(size * attribution.gamma_term, 6),
-                    "Vega term": round(size * attribution.vega_term, 6),
-                    "Theta term": round(size * attribution.theta_term, 6),
-                    "Residual": round(size * attribution.residual, 6),
+                    "Instrument": name, "Price A (cash)": round(attribution.price_a, 6),
+                    "Price B (cash)": round(attribution.price_b, 6),
+                    "Actual PnL (cash)": round(size * attribution.actual_pnl, 6),
+                    "Delta term (cash)": round(size * attribution.delta_term, 6),
+                    "Gamma term (cash)": round(size * attribution.gamma_term, 6),
+                    "Vega term (cash)": round(size * attribution.vega_term, 6),
+                    "Theta term (cash)": round(size * attribution.theta_term, 6),
+                    "Residual (cash)": round(size * attribution.residual, 6),
                 }
             )
             totals["delta"] += size * attribution.delta_term
@@ -222,7 +223,13 @@ def _attribution_block(universe_a, marks_a, universe_b, marks_b, currency: str, 
         if not rows:
             return
         st.dataframe(rows, hide_index=True, width="stretch")
-        st.metric("Portfolio actual P&L", f"{totals['actual']:,.6f}")
+        st.metric("Portfolio actual P&L (cash)", f"{totals['actual']:,.6f}")
+        st.caption(
+            "Every figure here is cash-denominated, including legs that settle in "
+            "coin: attribute_pnl runs on the spot-converted price, via "
+            "cash_greeks_from_coin, so positions in different instruments sum "
+            "onto one comparable scale."
+        )
         st.caption(
             f"Explained: delta {totals['delta']:,.4f} + gamma {totals['gamma']:,.4f} + "
             f"vega {totals['vega']:,.4f} + theta {totals['theta']:,.4f} = "

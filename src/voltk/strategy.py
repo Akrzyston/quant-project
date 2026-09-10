@@ -12,8 +12,11 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, replace
+from datetime import datetime
 from typing import Sequence
 
+from voltk.market_making import SessionStep
+from voltk.models.base import CP
 from voltk.portfolio import PortfolioGreeks
 
 
@@ -148,3 +151,127 @@ def backtest_premium_sharpe(daily_premiums: Sequence[float]) -> BacktestedEdge |
     std = math.sqrt(variance)
     sharpe = (mean / std) * math.sqrt(365.0) if std > 0 else None
     return BacktestedEdge(n=n, mean_daily_premium=mean, std_daily_premium=std, annualized_sharpe=sharpe)
+
+
+def autocorrelation(values: Sequence[float], *, lag: int = 1) -> float | None:
+    """Sample autocorrelation at the given lag: covariance of the series
+    with itself shifted by `lag`, normalized by the full-series variance --
+    the standard ACF estimator. None if there are too few points or the
+    series has zero variance (correlation is undefined, not zero).
+    """
+    n = len(values)
+    if n < lag + 2:
+        return None
+    mean = sum(values) / n
+    variance = sum((v - mean) ** 2 for v in values)
+    if variance == 0:
+        return None
+    covariance = sum((values[i] - mean) * (values[i + lag] - mean) for i in range(n - lag))
+    return covariance / variance
+
+
+def skewness(values: Sequence[float]) -> float | None:
+    """Adjusted Fisher-Pearson sample skewness (the convention behind
+    Excel's SKEW and scipy's skew(bias=False)). None below 3 points or with
+    zero variance. A short-gamma position's P&L is textbook negatively
+    skewed -- small frequent gains, rare large losses -- so a premium series
+    with skew near zero or positive is not yet showing that signature.
+    """
+    n = len(values)
+    if n < 3:
+        return None
+    mean = sum(values) / n
+    m2 = sum((v - mean) ** 2 for v in values) / n
+    m3 = sum((v - mean) ** 3 for v in values) / n
+    if m2 <= 0:
+        return None
+    g1 = m3 / m2**1.5
+    return math.sqrt(n * (n - 1)) / (n - 2) * g1
+
+
+@dataclass(frozen=True, slots=True)
+class AutocorrelationAdjustedSharpe:
+    raw_sharpe: float
+    lag1_autocorrelation: float
+    effective_annual_observations: float
+    adjusted_sharpe: float
+
+
+def autocorrelation_adjusted_sharpe(daily_premiums: Sequence[float]) -> AutocorrelationAdjustedSharpe | None:
+    """`backtest_premium_sharpe`'s sqrt(365) annualization assumes 365
+    independent daily draws. For an AR(1)-like series with lag-1
+    autocorrelation rho, the variance of a sum over N days scales as
+    N*(1+rho)/(1-rho) rather than N, so the correctly annualized Sharpe is
+    the naive one scaled by sqrt((1-rho)/(1+rho)) -- equivalently, treating
+    the year as having only `365*(1-rho)/(1+rho)` independent observations
+    instead of 365. rho is clamped away from +/-1 so a near-degenerate
+    series doesn't divide by zero.
+    """
+    raw = backtest_premium_sharpe(daily_premiums)
+    if raw is None or raw.annualized_sharpe is None:
+        return None
+    rho = autocorrelation(daily_premiums, lag=1)
+    if rho is None:
+        return None
+    rho = max(min(rho, 0.999), -0.999)
+    factor = (1.0 - rho) / (1.0 + rho)
+    return AutocorrelationAdjustedSharpe(
+        raw_sharpe=raw.annualized_sharpe,
+        lag1_autocorrelation=rho,
+        effective_annual_observations=365.0 * factor,
+        adjusted_sharpe=raw.annualized_sharpe * math.sqrt(factor),
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class PositionPathStep:
+    timestamp: datetime
+    underlying: float
+    option_pnl: float
+    hedge_pnl: float
+    total_pnl: float
+    cumulative_pnl: float
+
+
+def simulate_short_straddle_path(
+    model, steps: Sequence[SessionStep], *, strike: float, rate: float, size: float
+) -> tuple[PositionPathStep, ...]:
+    """Walks a short `size`-straddle position through a historical path,
+    rehedging to flat delta at the end of every step -- the same
+    delta-hedged construction this whole module assumes, applied day over
+    day instead of once. P&L is exact repricing (price_now - price_prev),
+    not a Taylor approximation, since the model is available at every step.
+
+    `vol` on each step is a single number (DVOL, typically), not this
+    strike's own historical smile -- nothing here stores historical smiles,
+    so the approximation degrades as the strike drifts away from the money
+    over the walk. Needs >=2 steps.
+    """
+    if len(steps) < 2:
+        return ()
+    first = steps[0]
+    call_price = model.price(first.underlying, strike, first.tau, first.vol, rate, CP.CALL)
+    put_price = model.price(first.underlying, strike, first.tau, first.vol, rate, CP.PUT)
+    call_greeks = model.greeks(first.underlying, strike, first.tau, first.vol, rate, CP.CALL)
+    put_greeks = model.greeks(first.underlying, strike, first.tau, first.vol, rate, CP.PUT)
+    hedge = hedge_delta(size * (call_greeks.delta + put_greeks.delta))
+    underlying_prev = first.underlying
+
+    cumulative = 0.0
+    out: list[PositionPathStep] = []
+    for step in steps[1:]:
+        call_now = model.price(step.underlying, strike, step.tau, step.vol, rate, CP.CALL)
+        put_now = model.price(step.underlying, strike, step.tau, step.vol, rate, CP.PUT)
+        option_pnl = -size * ((call_now - call_price) + (put_now - put_price))
+        hedge_pnl = hedge * (step.underlying - underlying_prev)
+        total = option_pnl + hedge_pnl
+        cumulative += total
+        out.append(PositionPathStep(
+            timestamp=step.timestamp, underlying=step.underlying,
+            option_pnl=option_pnl, hedge_pnl=hedge_pnl, total_pnl=total, cumulative_pnl=cumulative,
+        ))
+        call_greeks = model.greeks(step.underlying, strike, step.tau, step.vol, rate, CP.CALL)
+        put_greeks = model.greeks(step.underlying, strike, step.tau, step.vol, rate, CP.PUT)
+        hedge = hedge_delta(size * (call_greeks.delta + put_greeks.delta))
+        call_price, put_price, underlying_prev = call_now, put_now, step.underlying
+    return tuple(out)

@@ -44,6 +44,11 @@ are combined is already small. `voltk/strategy.py::hedge_delta` computes the
 exact residual and the panel hedges it with the underlying, so the position
 starts genuinely delta-neutral rather than approximately so.
 
+Deribit options settle in the underlying coin, not cash. Every Greek, P&L,
+and budget figure in Sizing, Capacity, and Risk below is coin-denominated --
+this is priced through the inverse model (M1/M4), never a units conversion
+from a cash number.
+
 ## Sizing
 
 `size_for_vega_budget` picks the largest whole number of straddles whose

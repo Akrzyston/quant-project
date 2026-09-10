@@ -15,6 +15,7 @@ from voltk.snapshots import SnapshotError, rebuild_universe
     slot=Slot.LEFT_RAIL,
     order=50,
     milestone="M0",
+    caption="Capture the chain to disk, or replay a stored one. Everything above follows whichever mode is active here.",
 )
 def render() -> None:
     s = state.get()

@@ -1,8 +1,8 @@
 """P&L attribution: the Taylor identity, its residual, and unit conventions.
 
 Residual shrinks as O(h^2) when spot/vol/time all move by a small common
-factor together (a real 2nd-order Taylor property, verified empirically
-before picking the tolerances below) -- but NOT when only some of the three
+factor together (a real 2nd-order Taylor property, checked before picking
+the tolerances below) -- but NOT when only some of the three
 move a little while another moves by a fixed, disproportionate amount (e.g.
 one full day of theta while spot/vol barely move), so the "small move" case
 here scales all three together.

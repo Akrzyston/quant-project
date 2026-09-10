@@ -69,14 +69,13 @@ M6 to answer.
 
 ### Inverting a historical option candle needs the forward at that timestamp
 
-The candle is coin-denominated (confirmed against the live endpoint,
-matching every other Deribit option quote this project handles), and tau
-genuinely shrinks through a session -- neither is true of a single
-snapshot. The forward at each timestamp comes from the same put-call parity
-identity `voltk.forward.implied_forward_curve` already uses for a full
-chain snapshot (`voltk.forward.forward_from_parity`, extracted so both call
-sites share one formula), applied per timestamp to a call/put candle pair
-rather than once to a book summary:
+The candle is coin-denominated, matching every other Deribit option quote
+this project handles, and tau genuinely shrinks through a session -- neither
+is true of a single snapshot. The forward at each timestamp comes from the
+same put-call parity identity `voltk.forward.implied_forward_curve` already
+uses for a full chain snapshot (`voltk.forward.forward_from_parity`,
+extracted so both call sites share one formula), applied per timestamp to a
+call/put candle pair rather than once to a book summary:
 
 ```
 Coin-settled: C - P = 1 - K/F  =>  F_K = K / (1 - (C-P))

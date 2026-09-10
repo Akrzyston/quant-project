@@ -25,6 +25,7 @@ GRID_POINTS = 41
     slot=Slot.MAIN,
     order=19,
     milestone="M3",
+    caption="Every smile stitched into one surface across strike and time, with the no-arbitrage checks stated outright rather than left for the picture to imply.",
 )
 def render() -> None:
     s = state.get()

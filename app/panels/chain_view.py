@@ -21,6 +21,7 @@ from voltk.universe import UniverseError
     slot=Slot.MAIN,
     order=12,
     milestone="M2",
+    caption="What gets filtered out before any of this is priced, with the fraction each rule removes. Nothing here disappears silently.",
 )
 def render() -> None:
     s = state.get()

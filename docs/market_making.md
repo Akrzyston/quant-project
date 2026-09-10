@@ -11,11 +11,13 @@ captured versus a Taylor-decomposed markout move, reusing the same
 ## Width
 
 `voltk.quoting.derive_width` sums three terms, each a real cost a market
-maker is compensated for:
+maker is compensated for. The Mock Quoter panel only renders once a
+coin-settled model is selected (Deribit options settle in coin, not cash),
+so every term below -- and the resulting width itself -- is coin-denominated:
 
 - **Fit term** -- `vega * |fit_residual_vol|`. If the raw market mark at this
   strike sits away from the fitted curve, that's model uncertainty, and
-  vega converts a vol-space uncertainty into a dollar one.
+  vega converts a vol-space uncertainty into a coin one.
 - **Gamma term** -- `0.5 * gamma * (expected move)^2`, the textbook cost of
   not being able to rehedge continuously. The expected move is
   `underlying * vol * sqrt(rehedge_interval)`, sized off this option's own

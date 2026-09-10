@@ -34,14 +34,14 @@ It is never subtracted away or folded into another term.
 
 ## The theta sign convention
 
-This library defines `theta = -dV/dtau` (confirmed against
+This library defines `theta = -dV/dtau`, matching
 `tests/test_greeks_finite_difference.py::test_theta`'s own finite-difference
-harness, which flips the sign: `numeric = -first_derivative(price, tau, ...)`).
+harness, which flips the sign: `numeric = -first_derivative(price, tau, ...)`.
 Since `tau` decreases as calendar time passes (`dtau = -dt`), the chain rule
 gives `dV = -theta * dtau = theta * dt` -- so `Theta_A * dt` with `dt` as
-*positive elapsed time* is exactly right, not `-Theta_A * dt`. Verified
-numerically, not just derived: with nothing else moving, `theta * dt` for a
-10-day roll matches the actual repriced difference to within 2%.
+*positive elapsed time* is exactly right, not `-Theta_A * dt`. Not just
+derived: with nothing else moving, `theta * dt` for a 10-day roll matches
+the actual repriced difference to within 2%.
 
 ## Units: read them off the Greeks, don't assume them
 

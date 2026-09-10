@@ -11,7 +11,8 @@ import pytest
 from app.registry import Slot, all_panels, discover, manifest, panels_for
 
 EXPECTED = {
-    ("symbol_selector", "left_rail", 10),
+    ("symbol_selector", "global", 10),
+    ("position_view", "featured", 10),
     ("model_selector", "left_rail", 20),
     ("option_details", "left_rail", 30),
     ("greeks_details", "left_rail", 40),
@@ -24,7 +25,6 @@ EXPECTED = {
     ("surface_3d", "main", 19),
     ("snapshot_browser", "main", 20),
     ("vol_history", "main", 22),
-    ("position_view", "main", 24),
     ("quoting_parameters", "quoter_rail", 10),
     ("mock_orderbook", "quoter_main", 10),
 }
@@ -53,3 +53,11 @@ def test_ordering_within_a_slot_is_unambiguous() -> None:
         orders = [spec.order for spec in panels_for(slot)]
         assert orders == sorted(orders)
         assert len(orders) == len(set(orders))
+
+
+def test_every_main_and_quoter_main_panel_has_a_caption() -> None:
+    # these are the slots _render_main puts into a tab strip once there's
+    # more than one panel, dropping the title heading -- caption is the
+    # only on-screen orientation left in that case
+    for spec in [*panels_for(Slot.MAIN), *panels_for(Slot.QUOTER_MAIN)]:
+        assert spec.caption, f"{spec.key} has no caption and would render with no context in its tab"

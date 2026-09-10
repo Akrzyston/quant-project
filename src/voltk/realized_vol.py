@@ -9,10 +9,10 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from datetime import datetime
-from typing import Sequence
+from datetime import datetime, timedelta
+from typing import Callable, Sequence
 
-from voltk.marketdata.parse import Candle
+from voltk.marketdata.parse import Candle, RealizedVolPoint
 
 _SECONDS_PER_YEAR = 365.0 * 24 * 3600
 
@@ -93,3 +93,67 @@ def parkinson(candles: Sequence[Candle], *, periods_per_year: float) -> Realized
         n_observations=n,
         value=math.sqrt(variance),
     )
+
+
+def rolling_realized_vol(
+    candles: Sequence[Candle],
+    *,
+    window: timedelta,
+    step: timedelta,
+    estimator: Callable[..., RealizedVolResult] = close_to_close,
+) -> tuple[RealizedVolPoint, ...]:
+    """One realized-vol estimate per step, computed from the trailing
+    `window` of candles ending at that point. Deribit's own realized-vol
+    history endpoint caps at ~16 days regardless of what's requested; this
+    reaches back as far as the candles do, computed independently -- the
+    same principle this module already applies to the single-window
+    estimators, extended to a series.
+    """
+    if not candles:
+        return ()
+    ordered = sorted(candles, key=lambda c: c.timestamp)
+    t = ordered[0].timestamp + window
+    end = ordered[-1].timestamp
+    points: list[RealizedVolPoint] = []
+    while t <= end:
+        in_window = [c for c in ordered if t - window < c.timestamp <= t]
+        if len(in_window) >= 2:
+            try:
+                periods = infer_periods_per_year(in_window)
+                result = estimator(in_window, periods_per_year=periods)
+            except RealizedVolError:
+                pass  # too sparse for this estimator (e.g. close_to_close needs >=2 returns) -- skip, don't crash the series
+            else:
+                points.append(RealizedVolPoint(timestamp=t, value=result.value))
+        t += step
+    return tuple(points)
+
+
+@dataclass(frozen=True, slots=True)
+class Reconciliation:
+    n: int
+    mean_abs_diff: float
+
+
+def reconcile(
+    a: Sequence[RealizedVolPoint], b: Sequence[RealizedVolPoint], *, max_gap_seconds: float = 3600.0
+) -> Reconciliation | None:
+    """How closely two realized-vol series agree where they overlap in time,
+    paired by nearest timestamp within max_gap_seconds. The same cross-check
+    principle this project already runs against Deribit's DVOL (M3), applied
+    here to check rolling_realized_vol against Deribit's own published
+    realized-vol series over whatever window the venue's own capped history
+    actually covers.
+    """
+    if not a or not b:
+        return None
+    b_sorted = sorted(b, key=lambda p: p.timestamp)
+    diffs: list[float] = []
+    for pa in a:
+        nearest = min(b_sorted, key=lambda pb: abs((pb.timestamp - pa.timestamp).total_seconds()))
+        gap = abs((nearest.timestamp - pa.timestamp).total_seconds())
+        if gap <= max_gap_seconds:
+            diffs.append(abs(pa.value - nearest.value))
+    if not diffs:
+        return None
+    return Reconciliation(n=len(diffs), mean_abs_diff=sum(diffs) / len(diffs))

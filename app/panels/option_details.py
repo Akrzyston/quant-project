@@ -17,6 +17,7 @@ from voltk.universe import UniverseError
     slot=Slot.LEFT_RAIL,
     order=30,
     milestone="M1",
+    caption="One contract, live: price, implied vol, and the gap between them on the round trip.",
 )
 def render() -> None:
     s = state.get()
@@ -89,7 +90,12 @@ def render() -> None:
         st.error(str(exc))
         return
 
-    unit = instrument.settlement_currency if spec.settles_in_base else instrument.quote_currency
+    # instrument.quote_currency is the venue's own metadata for the traded
+    # contract (BTC for a BTC option, even though it's an inverse instrument),
+    # not a statement about what unit a chosen quote-settled *model*'s output
+    # is in -- Black-Scholes etc. price a linear payoff on (forward, strike)
+    # and land on a genuinely dollar-scale number, so the label is generic.
+    unit = instrument.settlement_currency if spec.settles_in_base else "quote currency"
     st.metric(f"Model price ({unit})", f"{price:,.6f}")
 
     result = pricing.solve_implied(model, price, args)
@@ -102,6 +108,6 @@ def render() -> None:
 
     try:
         bounds = model.bounds(args.underlying, args.strike, args.tau, args.rate, args.cp)
-        st.caption(f"No-arbitrage band [{bounds.lower:,.6f}, {bounds.upper:,.6f}]")
+        st.caption(f"No-arbitrage band ({unit}) [{bounds.lower:,.6f}, {bounds.upper:,.6f}]")
     except ArbitrageError as exc:
         st.error(str(exc))

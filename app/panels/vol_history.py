@@ -37,6 +37,7 @@ STRIKE_LADDER_SIZE = 3
     slot=Slot.MAIN,
     order=22,
     milestone="M6",
+    caption="Implied against realized vol over time, the resulting premium, and which sticky-vol regime actually holds. This is the signal the Strategy tab trades on.",
 )
 def render() -> None:
     s = state.get()
@@ -84,7 +85,7 @@ def _implied_vs_realized_block(currency: str) -> None:
         _reconciliation(currency, realized_series)
 
         st.caption(
-            "Deribit's own realized figure is a black box -- undocumented sampling "
+            "Deribit's own realized figure is a black box: undocumented sampling "
             "frequency, window length and annualisation convention. It will not "
             "match a figure computed independently even from the same underlying "
             "price path; the gap is expected, not a bug in either number."
@@ -132,7 +133,7 @@ def _reconciliation(currency: str, realized_series) -> None:
     st.caption(
         f"Own estimates from {own_close_to_close.n_observations} hourly perpetual candles "
         f"over the trailing {REALIZED_LOOKBACK_DAYS} days, close-to-close and Parkinson "
-        "range estimators -- Deribit's own figure is not disclosed to use the same window "
+        "range estimators. Deribit's own figure is not disclosed to use the same window "
         "or sampling frequency, so an exact match is not expected."
     )
 
@@ -168,7 +169,7 @@ def _variance_premium_block(currency: str) -> None:
         cols[1].metric("Fraction of window positive", f"{summary.fraction_positive:.0%}")
         cols[2].metric("Inversions", len(summary.inversions))
         st.caption(
-            "A persistently positive premium is the textbook variance risk premium -- "
+            "A persistently positive premium is the textbook variance risk premium: "
             "sellers of volatility are compensated on average for bearing realized-vol "
             "risk. Inversions are the timestamps that compensation ran negative."
         )

@@ -1,18 +1,25 @@
 from __future__ import annotations
 
 import math
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
+from voltk.market_making import SessionStep
+from voltk.models.inverse import InverseOption
 from voltk.portfolio import PortfolioGreeks
 from voltk.strategy import (
     StrategyError,
+    autocorrelation,
+    autocorrelation_adjusted_sharpe,
     backtest_premium_sharpe,
     capacity_from_open_interest,
     check_kill_conditions,
     expected_daily_edge,
     hedge_delta,
+    simulate_short_straddle_path,
     size_for_vega_budget,
+    skewness,
     with_hedge,
 )
 
@@ -104,3 +111,108 @@ def test_backtest_premium_sharpe_matches_a_hand_computed_case() -> None:
 
 def test_backtest_premium_sharpe_none_with_too_few_observations() -> None:
     assert backtest_premium_sharpe([0.01]) is None
+
+
+def test_autocorrelation_matches_a_hand_computed_case() -> None:
+    # period-2 series [0, 1, 0, 1]: mean 0.5, deviations [-.5, .5, -.5, .5]
+    values = [0.0, 1.0, 0.0, 1.0]
+    variance = sum((v - 0.5) ** 2 for v in values)  # 1.0
+    covariance = (-0.5 * 0.5) + (0.5 * -0.5) + (-0.5 * 0.5)  # -0.75
+    assert autocorrelation(values, lag=1) == pytest.approx(covariance / variance)
+
+
+def test_autocorrelation_none_with_too_few_points() -> None:
+    assert autocorrelation([1.0, 2.0], lag=1) is None
+
+
+def test_autocorrelation_none_for_a_constant_series() -> None:
+    assert autocorrelation([1.0, 1.0, 1.0, 1.0], lag=1) is None
+
+
+def test_skewness_is_zero_for_a_symmetric_series() -> None:
+    assert skewness([-1.0, 0.0, 1.0]) == pytest.approx(0.0)
+
+
+def test_skewness_is_positive_for_a_right_skewed_series() -> None:
+    assert skewness([1.0, 1.0, 1.0, 10.0]) > 0.0
+
+
+def test_skewness_none_below_three_points() -> None:
+    assert skewness([1.0, 2.0]) is None
+
+
+def test_autocorrelation_adjusted_sharpe_matches_the_stated_formula() -> None:
+    premiums = [0.01, 0.03, 0.02, -0.01, 0.02, 0.015]
+    raw = backtest_premium_sharpe(premiums)
+    rho = autocorrelation(premiums, lag=1)
+
+    result = autocorrelation_adjusted_sharpe(premiums)
+
+    factor = (1.0 - rho) / (1.0 + rho)
+    assert result.lag1_autocorrelation == pytest.approx(rho)
+    assert result.effective_annual_observations == pytest.approx(365.0 * factor)
+    assert result.adjusted_sharpe == pytest.approx(raw.annualized_sharpe * factor**0.5)
+
+
+def test_autocorrelation_adjusted_sharpe_none_with_too_few_observations() -> None:
+    assert autocorrelation_adjusted_sharpe([0.01]) is None
+
+
+def test_autocorrelation_adjusted_sharpe_shrinks_a_highly_autocorrelated_series() -> None:
+    # a smooth monotonic ramp (like a slow-moving vol level) has high rho,
+    # so the adjustment should pull the annualized Sharpe well below the naive one
+    premiums = [0.01 * i for i in range(1, 9)]
+    raw = backtest_premium_sharpe(premiums)
+    result = autocorrelation_adjusted_sharpe(premiums)
+    assert result.lag1_autocorrelation > 0.5
+    assert abs(result.adjusted_sharpe) < abs(raw.annualized_sharpe)
+
+
+INVERSE = InverseOption()
+STRIKE = 60_000.0
+RATE = 0.0
+START = datetime(2026, 8, 20, 0, 0, tzinfo=UTC)
+
+
+def _path_steps(underlyings: list[float], vol: float = 0.6, tau0: float = 0.1) -> list[SessionStep]:
+    return [
+        SessionStep(timestamp=START + timedelta(days=i), underlying=u, tau=max(tau0 - i * 0.01, 1e-4), vol=vol)
+        for i, u in enumerate(underlyings)
+    ]
+
+
+def test_simulate_short_straddle_path_too_few_steps_returns_empty() -> None:
+    steps = _path_steps([60_000.0])
+    assert simulate_short_straddle_path(INVERSE, steps, strike=STRIKE, rate=RATE, size=1.0) == ()
+
+
+def test_simulate_short_straddle_path_flat_underlying_has_zero_hedge_pnl() -> None:
+    steps = _path_steps([60_000.0] * 5)
+
+    path = simulate_short_straddle_path(INVERSE, steps, strike=STRIKE, rate=RATE, size=1.0)
+
+    assert len(path) == 4
+    assert all(p.hedge_pnl == pytest.approx(0.0) for p in path)
+    # ATM straddle, short, tau shrinking toward expiry with nothing else
+    # moving: theta decay helps a short position, so each step should profit
+    assert all(p.option_pnl > 0.0 for p in path)
+
+
+def test_simulate_short_straddle_path_cumulative_pnl_is_the_running_sum() -> None:
+    steps = _path_steps([60_000.0, 61_000.0, 59_500.0, 60_200.0])
+
+    path = simulate_short_straddle_path(INVERSE, steps, strike=STRIKE, rate=RATE, size=1.0)
+
+    running = 0.0
+    for p in path:
+        running += p.total_pnl
+        assert p.cumulative_pnl == pytest.approx(running)
+
+
+def test_simulate_short_straddle_path_hedge_offsets_most_of_a_directional_move() -> None:
+    steps = _path_steps([60_000.0, 66_000.0])  # a large single move
+
+    path = simulate_short_straddle_path(INVERSE, steps, strike=STRIKE, rate=RATE, size=1.0)
+
+    assert len(path) == 1
+    assert abs(path[0].total_pnl) < abs(path[0].option_pnl)

@@ -69,3 +69,71 @@ def summarise_premium(points: Sequence[PremiumPoint]) -> PremiumSummary | None:
         fraction_positive=sum(1 for p in points if p.premium > 0) / n,
         inversions=tuple(p.timestamp for p in points if p.premium < 0),
     )
+
+
+@dataclass(frozen=True, slots=True)
+class TradeWindow:
+    start: datetime
+    end: datetime
+    mean_premium: float
+    n: int
+
+
+def favorable_windows(points: Sequence[PremiumPoint], *, threshold: float = 0.0) -> tuple[TradeWindow, ...]:
+    """Contiguous stretches where premium > threshold -- the periods a simple
+    "sell vol when implied sits above realized" rule would have been in this
+    trade. A timing illustration, not a P&L backtest: it says when the signal
+    would have said yes, not what running the position would have earned.
+    """
+    ordered = sorted(points, key=lambda p: p.timestamp)
+    windows: list[TradeWindow] = []
+    run: list[PremiumPoint] = []
+    for p in ordered:
+        if p.premium > threshold:
+            run.append(p)
+        elif run:
+            windows.append(_close_run(run))
+            run = []
+    if run:
+        windows.append(_close_run(run))
+    return tuple(windows)
+
+
+def _close_run(run: Sequence[PremiumPoint]) -> TradeWindow:
+    return TradeWindow(
+        start=run[0].timestamp,
+        end=run[-1].timestamp,
+        mean_premium=sum(p.premium for p in run) / len(run),
+        n=len(run),
+    )
+
+
+def cumulative_captured_premium(points: Sequence[PremiumPoint], *, threshold: float = 0.0) -> tuple[float, ...]:
+    """Running sum of premium on days it clears threshold, flat on days it
+    doesn't -- one value per point in timestamp order, matching `points`
+    one-for-one so a caller can zip it back against timestamps for a chart.
+    Not a P&L series: no sizing, hedging cost, or repricing, just the raw
+    signal accumulated, to show its path rather than only its mean.
+    """
+    ordered = sorted(points, key=lambda p: p.timestamp)
+    out: list[float] = []
+    running = 0.0
+    for p in ordered:
+        if p.premium > threshold:
+            running += p.premium
+        out.append(running)
+    return tuple(out)
+
+
+def max_drawdown(cumulative: Sequence[float]) -> float:
+    """Largest peak-to-trough decline in a cumulative series, as a negative
+    number (0.0 if the series never comes off its running high). Reported
+    alongside a Sharpe because a short-vol signal's risk is concentrated in
+    drawdowns a mean/std summary doesn't show on its own.
+    """
+    peak = float("-inf")
+    worst = 0.0
+    for v in cumulative:
+        peak = max(peak, v)
+        worst = min(worst, v - peak)
+    return worst

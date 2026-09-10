@@ -32,7 +32,7 @@ DEFAULT_LEVEL_MULTIPLES = (-0.4, -0.2, 0.2, 0.4)
     slot=Slot.LEFT_RAIL,
     order=40,
     milestone="M4",
-    caption="Populates when an expiry is selected from the volatility surface.",
+    caption="Every Greek in both settlement units, skew-adjusted delta under both sticky regimes, bucketed vega, and a structured shock ladder for whatever contract is selected above.",
 )
 def render() -> None:
     s = state.get()
@@ -90,8 +90,8 @@ def render() -> None:
 
     _greeks_table(spec, coin, cash)
     _skew_block(model, surface, instrument, forward, args)
-    _bucket_block(universe, marks, currency, instrument, model, forward, args, slice_)
-    _shock_block(currency, model, slice_, forward, args)
+    _bucket_block(universe, marks, currency, instrument, model, spec, forward, args, slice_)
+    _shock_block(currency, model, spec, instrument, slice_, forward, args)
     _portfolio_block(universe, currency, marks, spec, model)
 
 
@@ -150,14 +150,15 @@ def _skew_block(model, surface, instrument, forward, args) -> None:
         ]
         st.dataframe(rows, hide_index=True, width="stretch")
         st.caption(
-            "Sticky-strike leaves delta exactly flat -- the fitted smile is pinned to "
+            "Sticky-strike leaves delta exactly flat: the fitted smile is pinned to "
             "absolute strikes by definition, so it doesn't move as spot moves. "
             "Sticky-delta picks up Vega x dsigma/d(underlying) from the fitted smile. "
-            "M6 determines empirically which regime actually holds."
+            "Which regime the market actually follows is an empirical question, "
+            "answered against realized data in the vol dynamics tab."
         )
 
 
-def _bucket_block(universe, marks, currency, instrument, model, forward, args, slice_) -> None:
+def _bucket_block(universe, marks, currency, instrument, model, spec, forward, args, slice_) -> None:
     with st.expander("Bucketed vega"):
         forwards = implied_forward_curve(
             universe, marks, currency=currency, expiries=[instrument.expiry]
@@ -175,21 +176,25 @@ def _bucket_block(universe, marks, currency, instrument, model, forward, args, s
             st.caption(f"Could not bucket vega: {exc}")
             return
 
+        # instrument.quote_currency is the venue's inverse-instrument metadata
+        # (BTC for a BTC option), not the unit a quote-settled model's output
+        # is actually in -- that's a genuinely dollar-scale linear payoff.
+        unit = instrument.settlement_currency if spec.settles_in_base else "quote currency"
         rows = [
             {
                 "Bucket": b.label, "k range": f"[{b.k_range[0]:.2f}, {b.k_range[1]:.2f}]",
-                "Points": b.points_used, "Vega": round(b.vega, 6),
+                "Points": b.points_used, f"Vega ({unit})": round(b.vega, 6),
             }
             for b in result.buckets
         ]
         st.dataframe(rows, hide_index=True, width="stretch")
         st.caption(
             f"Bucketed sum {result.total_bucketed:,.6f} vs parallel vega "
-            f"{result.parallel_vega:,.6f} ({result.reconciliation_error:.2%} apart)."
+            f"{result.parallel_vega:,.6f} {unit} ({result.reconciliation_error:.2%} apart)."
         )
 
 
-def _shock_block(currency, model, slice_, forward, args) -> None:
+def _shock_block(currency, model, spec, instrument, slice_, forward, args) -> None:
     with st.expander("Shock ladder"):
         dvol_series = data.dvol_for(currency)
         level_magnitudes = level_shock_magnitudes_from_dvol(dvol_series, slice_.a)
@@ -201,19 +206,23 @@ def _shock_block(currency, model, slice_, forward, args) -> None:
             slice_, model, forward, args.strike, args.rate, args.cp,
             level_magnitudes=level_magnitudes,
         )
+        # instrument.quote_currency is the venue's inverse-instrument metadata
+        # (BTC for a BTC option), not the unit a quote-settled model's output
+        # is actually in -- that's a genuinely dollar-scale linear payoff.
+        unit = instrument.settlement_currency if spec.settles_in_base else "quote currency"
         rows = [
             {
                 "Shock": r.definition.label, "Factor": r.definition.factor.value,
-                "Vol": round(r.shocked_vol, 4), "Price": round(r.shocked_price, 6),
-                "PnL": round(r.pnl, 6),
+                "Vol": round(r.shocked_vol, 4), f"Price ({unit})": round(r.shocked_price, 6),
+                f"PnL ({unit})": round(r.pnl, 6),
             }
             for r in ladder.rungs
         ]
         figure = go.Figure(
-            go.Bar(x=[r["Shock"] for r in rows], y=[r["PnL"] for r in rows])
+            go.Bar(x=[r["Shock"] for r in rows], y=[r[f"PnL ({unit})"] for r in rows])
         )
         figure.update_layout(
-            xaxis_title="Shock", yaxis_title="P&L", height=360,
+            xaxis_title="Shock", yaxis_title=f"P&L ({unit})", height=360,
             margin=dict(l=10, r=10, t=30, b=10),
         )
         st.plotly_chart(figure, width="stretch")
@@ -221,7 +230,7 @@ def _shock_block(currency, model, slice_, forward, args) -> None:
         source = "Deribit's own DVOL history" if sourced_from_dvol else "a documented default"
         st.caption(
             "Level, skew, and curvature bump the fitted SVI parameters (a, rho, sigma) "
-            f"directly -- three distinctly-shaped moves, not a parallel vol shift. "
+            f"directly: three distinctly-shaped moves, not a parallel vol shift. "
             f"Level magnitude sourced from {source}. Skew and curvature shock "
             "magnitudes are model-implied, not empirically decomposed: Deribit's public "
             "API has no bulk historical-chain endpoint to decompose."
@@ -270,18 +279,19 @@ def _portfolio_block(universe, currency, marks, spec, model) -> None:
             return
 
         cash_totals = aggregate_greeks(positions, use_cash=True)
+        st.caption("Cash-denominated Greeks, summable across positions even if they settle in different units.")
         st.dataframe(
             [
                 {
-                    "Delta": round(cash_totals.delta, 4), "Gamma": round(cash_totals.gamma, 6),
-                    "Vega": round(cash_totals.vega, 4), "Theta": round(cash_totals.theta, 4),
-                    "Vanna": round(cash_totals.vanna, 6), "Volga": round(cash_totals.volga, 6),
+                    "Delta (cash)": round(cash_totals.delta, 4), "Gamma (cash)": round(cash_totals.gamma, 6),
+                    "Vega (cash)": round(cash_totals.vega, 4), "Theta (cash)": round(cash_totals.theta, 4),
+                    "Vanna (cash)": round(cash_totals.vanna, 6), "Volga (cash)": round(cash_totals.volga, 6),
                 }
             ],
             hide_index=True, width="stretch",
         )
         try:
             native_totals = aggregate_greeks(positions, use_cash=False)
-            st.caption(f"Native-unit delta (single settlement currency): {native_totals.delta:,.4f}")
+            st.caption(f"Native-unit (coin) delta, only valid if every position shares one settlement currency: {native_totals.delta:,.4f}")
         except PortfolioError as exc:
             st.caption(f"Native-unit aggregation unavailable: {exc}")

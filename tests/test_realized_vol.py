@@ -12,7 +12,15 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from voltk.marketdata.parse import Candle
-from voltk.realized_vol import RealizedVolError, close_to_close, infer_periods_per_year, parkinson
+from voltk.marketdata.parse import RealizedVolPoint
+from voltk.realized_vol import (
+    RealizedVolError,
+    close_to_close,
+    infer_periods_per_year,
+    parkinson,
+    reconcile,
+    rolling_realized_vol,
+)
 
 START = datetime(2026, 8, 20, 0, 0, tzinfo=UTC)
 
@@ -72,3 +80,85 @@ def test_parkinson_is_positive_when_ranges_are_nonzero() -> None:
     result = parkinson(candles, periods_per_year=365.0 * 24)
     assert result.value > 0.0
     assert result.n_observations == 3
+
+
+def test_rolling_realized_vol_produces_one_point_per_step_in_range() -> None:
+    candles = _candles([100.0] * 11)  # hours 0..10
+    points = rolling_realized_vol(candles, window=timedelta(hours=3), step=timedelta(hours=1))
+    assert len(points) == 8
+    assert points[0].timestamp == START + timedelta(hours=3)
+    assert points[-1].timestamp == START + timedelta(hours=10)
+
+
+def test_rolling_realized_vol_single_window_matches_a_direct_close_to_close_call() -> None:
+    candles = _candles([100.0, 101.0, 102.0, 101.0, 103.0])  # hours 0..4
+    window = timedelta(hours=4)
+    points = rolling_realized_vol(candles, window=window, step=window)
+
+    assert len(points) == 1
+    # window is (start, start+4h], excluding the candle at hour 0
+    in_window = candles[1:]
+    periods = infer_periods_per_year(in_window)
+    expected = close_to_close(in_window, periods_per_year=periods).value
+    assert points[0].value == pytest.approx(expected)
+    assert points[0].timestamp == START + window
+
+
+def test_rolling_realized_vol_skips_windows_with_too_few_candles() -> None:
+    # A dense run (0-4h), an isolated candle (10h), then another dense run (20-23h).
+    # close_to_close needs >=3 candles (2 returns) per window, so a 3h window
+    # only succeeds where the underlying data is actually dense enough.
+    hours = [0, 1, 2, 3, 4, 10, 20, 21, 22, 23]
+    candles = [
+        Candle(
+            timestamp=START + timedelta(hours=h),
+            open=100.0, high=100.1, low=99.9, close=100.0 + h * 0.1, volume=1.0,
+        )
+        for h in hours
+    ]
+    points = rolling_realized_vol(candles, window=timedelta(hours=3), step=timedelta(hours=1))
+    timestamps = [p.timestamp for p in points]
+    assert timestamps == [
+        START + timedelta(hours=3), START + timedelta(hours=4),
+        START + timedelta(hours=22), START + timedelta(hours=23),
+    ]
+
+
+def test_rolling_realized_vol_empty_input() -> None:
+    assert rolling_realized_vol([], window=timedelta(hours=1), step=timedelta(hours=1)) == ()
+
+
+def _rvp(hours: int, value: float) -> RealizedVolPoint:
+    return RealizedVolPoint(timestamp=START + timedelta(hours=hours), value=value)
+
+
+def test_reconcile_identical_series_has_zero_mean_diff() -> None:
+    a = [_rvp(0, 0.60), _rvp(1, 0.62)]
+    b = [_rvp(0, 0.60), _rvp(1, 0.62)]
+
+    result = reconcile(a, b)
+
+    assert result.n == 2
+    assert result.mean_abs_diff == pytest.approx(0.0)
+
+
+def test_reconcile_reports_a_constant_offset() -> None:
+    a = [_rvp(0, 0.60), _rvp(1, 0.62)]
+    b = [_rvp(0, 0.55), _rvp(1, 0.57)]
+
+    result = reconcile(a, b)
+
+    assert result.n == 2
+    assert result.mean_abs_diff == pytest.approx(0.05)
+
+
+def test_reconcile_drops_points_beyond_the_max_gap() -> None:
+    a = [_rvp(0, 0.60)]
+    b = [_rvp(5, 0.60)]  # 5 hours away
+
+    assert reconcile(a, b, max_gap_seconds=3600.0) is None
+
+
+def test_reconcile_empty_inputs_return_none() -> None:
+    assert reconcile([], []) is None
+    assert reconcile([_rvp(0, 0.6)], []) is None

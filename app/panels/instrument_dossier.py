@@ -25,6 +25,7 @@ VENUE_SPEC = "deribit"
     slot=Slot.MAIN,
     order=10,
     milestone="M0",
+    caption="What actually got captured, in one bracketed window, and how clean that capture was. Everything downstream assumes this is a real instant, not two reads stitched together.",
 )
 def render() -> None:
     s = state.get()
@@ -81,7 +82,7 @@ def _currency_block(universe, summary, currency: str) -> None:
 
     index_price = block["index_price"]
     if index_price is not None:
-        st.metric("Index", f"{index_price:,.2f}")
+        st.metric("Index (quote currency)", f"{index_price:,.2f}")
 
     settlement = "inverse" if block["inverse_count"] else "linear"
     if block["inverse_count"] and block["linear_count"]:

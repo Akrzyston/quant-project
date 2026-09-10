@@ -17,7 +17,7 @@ from voltk.marketdata import MarketDataError
 @panel(
     key="symbol_selector",
     title="Symbol Selector",
-    slot=Slot.LEFT_RAIL,
+    slot=Slot.GLOBAL,
     order=10,
     milestone="M0",
 )

@@ -13,6 +13,8 @@ from typing import Callable, Iterable
 
 
 class Slot(StrEnum):
+    GLOBAL = "global"
+    FEATURED = "featured"
     LEFT_RAIL = "left_rail"
     MAIN = "main"
     QUOTER_RAIL = "quoter_rail"

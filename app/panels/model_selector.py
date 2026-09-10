@@ -15,6 +15,7 @@ from voltk import models
     slot=Slot.LEFT_RAIL,
     order=20,
     milestone="M1",
+    caption="The model pricing every panel to the right. Black-Scholes leads on purpose, so its mistakes on a coin-settled contract stay visible instead of hidden.",
 )
 def render() -> None:
     s = state.get()

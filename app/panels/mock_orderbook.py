@@ -32,6 +32,7 @@ MARKOUT_STEPS = 2
     slot=Slot.QUOTER_MAIN,
     order=10,
     milestone="M7",
+    caption="A two-sided quote against the live market, and a simulated session showing what actually fills, and why.",
 )
 def render() -> None:
     s = state.get()
@@ -100,7 +101,7 @@ def render() -> None:
     width = derive_width(
         vega=greeks.vega, gamma=greeks.gamma, fit_residual_vol=fit_residual,
         underlying=args.underlying, vol=vol, market_half_spread=market_half_spread,
-        fit_coef=q.fit_coef, gamma_coef=q.gamma_coef, liquidity_coef=q.liquidity_coef, floor=q.floor_dollar,
+        fit_coef=q.fit_coef, gamma_coef=q.gamma_coef, liquidity_coef=q.liquidity_coef, floor=q.floor_coin,
     )
 
     _width_block(theo, width, fit_residual)
@@ -111,9 +112,9 @@ def render() -> None:
 def _width_block(theo: float, width, fit_residual: float) -> None:
     cols = st.columns(4)
     cols[0].metric("Theo (coin)", f"{theo:.6f}")
-    cols[1].metric("Fit term", f"{width.fit_term:.6f}", help=f"fit residual {fit_residual:+.4f} vol")
-    cols[2].metric("Gamma term", f"{width.gamma_term:.6f}")
-    cols[3].metric("Liquidity term", f"{width.liquidity_term:.6f}")
+    cols[1].metric("Fit term (coin)", f"{width.fit_term:.6f}", help=f"fit residual {fit_residual:+.4f} vol")
+    cols[2].metric("Gamma term (coin)", f"{width.gamma_term:.6f}")
+    cols[3].metric("Liquidity term (coin)", f"{width.liquidity_term:.6f}")
 
 
 def _ladder_block(theo: float, width, q, tau: float, vol: float, quote) -> None:
@@ -121,12 +122,12 @@ def _ladder_block(theo: float, width, q, tau: float, vol: float, quote) -> None:
     mid = reservation_price(theo, inventory, q.risk_aversion, vol, tau)
     ladder = quote_ladder(mid, width.half_width, levels=q.levels, size=q.size, level_growth=q.level_growth)
 
-    rows = [{"Level": lvl.level, "Bid": round(lvl.bid, 6), "Ask": round(lvl.ask, 6), "Size": lvl.size} for lvl in ladder]
+    rows = [{"Level": lvl.level, "Bid (coin)": round(lvl.bid, 6), "Ask (coin)": round(lvl.ask, 6), "Size": lvl.size} for lvl in ladder]
     st.dataframe(rows, hide_index=True, width="stretch")
 
     if quote and quote.bid is not None and quote.ask is not None:
         position = classify_against_market(ladder[0].bid, ladder[0].ask, quote.bid, quote.ask)
-        st.metric("Vs. live market", position.value, help=f"live {quote.bid:.6f} / {quote.ask:.6f}")
+        st.metric("Vs. live market", position.value, help=f"live {quote.bid:.6f} / {quote.ask:.6f} coin")
     else:
         st.caption("No two-sided live market to compare against right now.")
 
@@ -166,13 +167,13 @@ def _session_block(universe, model, instrument, currency: str, args, vol: float,
 
         cols = st.columns(5)
         cols[0].metric("Fills", len(result.fills))
-        cols[1].metric("Edge captured", f"{result.total_edge:+.6f}")
-        cols[2].metric("Adverse selection", f"{result.total_adverse_selection:+.6f}")
-        cols[3].metric("Vega P&L", f"{result.total_vega_pnl:+.6f}")
-        cols[4].metric("Total P&L", f"{result.total_pnl:+.6f}")
+        cols[1].metric("Edge captured (coin)", f"{result.total_edge:+.6f}")
+        cols[2].metric("Adverse selection (coin)", f"{result.total_adverse_selection:+.6f}")
+        cols[3].metric("Vega P&L (coin)", f"{result.total_vega_pnl:+.6f}")
+        cols[4].metric("Total P&L (coin)", f"{result.total_pnl:+.6f}")
         st.caption(
             f"Ending inventory {result.ending_inventory:+g} contracts. Residual "
-            f"{result.total_residual:+.6f} (theta plus omitted cross-terms), never folded "
-            "into the other figures. Fills assume a maximally-informed counterparty -- an "
-            "upper bound on adverse selection, not an average session."
+            f"{result.total_residual:+.6f} coin (theta plus omitted cross-terms), never "
+            "folded into the other figures. Fills assume a maximally-informed counterparty "
+            "-- an upper bound on adverse selection, not an average session."
         )
